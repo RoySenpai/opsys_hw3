@@ -37,11 +37,11 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
-	if (!isFileExists(FILE_NAME))
+	if (!isFileExists(((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME)))
 	{
-		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", FILE_NAME);
+		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", ((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME));
 		
-		if (generateRandomData(FILE_NAME, FILE_SIZE) == EXIT_FAILURE)
+		if (generateRandomData(((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME), FILE_SIZE) == EXIT_FAILURE)
 		{
 			fprintf(stderr, "Failed to generate random data.\n");
 			return EXIT_FAILURE;
