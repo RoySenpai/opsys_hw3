@@ -81,7 +81,7 @@ void printServerUsage(char *programName) {
 }
 
 void printLicense() {
-		fprintf(stdout, "Student Shell  Copyright (C) 2023  Roy Simanovich and Linor Ronen\n"
+		fprintf(stdout, "Student Network Communication (STNC)  Copyright (C) 2023  Roy Simanovich and Linor Ronen\n"
 						"This program comes with ABSOLUTELY NO WARRANTY.\n"
 						"This is free software, and you are welcome to redistribute it\n"
 						"under certain conditions; see `LICENSE' for details.\n\n"
