@@ -19,6 +19,29 @@
 #ifndef _STNC_H
 #define _STNC_H
 
+
+/*
+ * @brief A macro to indicate an invalid socket.
+*/
+#define INVALID_SOCKET -1
+
+
+#define MIN_PORT_NUMBER 1024
+
+#define MAX_PORT_NUMBER 65535
+
+
+/*
+ * @brief Defines the maximum size of a message, in chat mode.
+ * @note The default value is 1024 bytes.
+*/
+#define MAX_MESSAGE_SIZE 1024
+
+
+/*************************/
+/* Functions declaration */
+/*************************/
+
 /*
  * @brief Client chat mode of the STNC program.
  * @param ip The IP address of the server.
