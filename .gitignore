@@ -50,3 +50,12 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Executables
+stnc
+
+# VScode files
+.vscode/launch.json
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/c_cpp_properties.json
