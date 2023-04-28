@@ -28,13 +28,13 @@ default: all
 ############
 # Programs #
 ############
-stnc: stnc.o
+stnc: stnc.o chat_mode.o perform_mode.o stnc_utils.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 ################
 # Object files #
 ################
-stnc.o: stnc.c stnc.h
+%.o: %.c stnc.h
 	$(CC) $(CFLAGS) -c $^
 	
 #################

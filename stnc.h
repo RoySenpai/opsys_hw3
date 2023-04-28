@@ -278,7 +278,7 @@ void printLicense();
  * @note The data is generated in blocks of 64KB.
  * @note If the size is not a multiple of 64KB, the last block will be smaller.
 */
-int generateRandomData(FILE *fd, uint64_t size);
+int generateRandomData(char *file_name, uint64_t size);
 
 /*
  * @brief Checks if a file exists.
