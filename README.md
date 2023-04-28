@@ -5,21 +5,25 @@
 **By Roy Simanovich and Linor Ronen**
 
 ## Description
+
 In this assignment we implemented a tool called STNC (Stands for Student Network Communication) tool, that has two main functions:
+
 * **Chat** – A chat cmd tool that can send messages over the network, to the same tool, listening on the other side, and get the response, so there will be 2 sides communication. The communication is based of IPv4 TCP protocol.
 * **Network Performance Tool** – A network performance tool that checks the internal and external network between two processes (that can be in two different machines). The tool generates a 100MB of random, data, saves it to a file and sends it to the other side via one of the 8 different protocols:
-    * **IPv4** – TCP or UDP.
-    * **IPv6** – TCP or UDP.
-    * **Unix Domain Socket (UDS)** – Stream (equivalent to TCP) or Datagram (equivalent to UDP).
-    * **Memory Mapped File** – Copy the generated file to the memory and share it (local machine only).
-    * **Piping** – Transfer the generated file via piping (local machine only).
+  * **IPv4** – TCP or UDP (local or remote machine).
+  * **IPv6** – TCP or UDP (local or remote machine).
+  * **Unix Domain Socket (UDS)** – Stream (equivalent to TCP) or Datagram (equivalent to UDP), local machine only.
+  * **Memory Mapped File** – Copy the generated file to the memory and share it (local machine only).
+  * **Piping** – Transfer the generated file via piping (local machine only).
 
 ## Requirements
+
 * Linux machine (Ubuntu 22.04 LTS preferable)
 * GNU C Compiler
 * Make
 
 ## Building
+
 ```
 # Cloning the repo to local machine.
 git clone https://github.com/RoySenpai/opsys_hw3.git
@@ -29,6 +33,7 @@ make all
 ```
 
 ## Running
+
 ```
 # Open STNC in client normal chat mode.
 ./stnc -c <IP> <PORT>
@@ -47,6 +52,7 @@ make all
 ```
 
 ### Options for TYPE and PARAM:
+
 ```
 # IPv4 & TCP mode
 ipv4 tcp

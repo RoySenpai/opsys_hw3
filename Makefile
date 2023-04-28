@@ -41,4 +41,4 @@ stnc.o: stnc.c stnc.h
 # Cleanup files #
 #################
 clean:
-	$(RM) *.gch *.o *.a *.so *.dll *.dylib stnc
+	$(RM) *.gch *.o *.a *.so *.dll *.dylib stnc stnc_file
