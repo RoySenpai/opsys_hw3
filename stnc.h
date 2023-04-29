@@ -65,6 +65,12 @@
 */
 #define FILE_SIZE 104857600
 
+/*
+ * @brief Defines the maximum size of a message, in performance mode.
+ * @note The default value is 1024 bytes.
+*/
+#define STNC_PROTO_MAX_SIZE 1024
+
 
 /****************************/
 /* Enumerations declaration */
@@ -92,6 +98,7 @@ typedef enum __attribute__((__packed__)) _message_type {
 	/* 
 	 * @brief Data - data transfer.
 	 * @note This message indicates that data is being sent (statistics, file name, address, etc.).
+	 * @note Errors are sent as data messages.
 	*/
 	MSGT_DATA,
 
@@ -100,14 +107,7 @@ typedef enum __attribute__((__packed__)) _message_type {
 	 * @note This message is sent only once, at the end of the communication.
 	 * @note This message is sent by the client only (the server will close the connection upon receiving this message).
 	*/
-	MSGT_END,
-
-	/*
-	 * @brief Error - error occurred.
-	 * @note This message is sent only once, when an error occurs, and the communication is terminated immediately.
-	 * @note This message can be sent by both the client and the server, as error can occur in both sides.
-	*/
-	MSGT_ERR
+	MSGT_END
 } message_type;
 
 /*
@@ -121,7 +121,6 @@ typedef enum __attribute__((__packed__)) _transfer_protocol {
 	/* 
 	 * @brief No protocol - Invalid protocol.
 	 * @note This indicates an error by providing an invalid protocol, in the client side.
-	 * @note In all other cases, this is the default value for non-initializion messages (MSGT_ACK, MSGT_DATA, MSGT_END, MSGT_ERR).
 	*/
 	PROTOCOL_NONE = 0,
 
@@ -168,7 +167,6 @@ typedef enum __attribute__((__packed__)) _transfer_param {
 	/* 
 	 * @brief No parameter - Invalid parameter.
 	 * @note This indicates an error by providing an invalid parameter, in the client side, if the protocol isn't mmap or pipe.
-	 * @note In all other cases, this is the default value for non-initializion messages (MSGT_ACK, MSGT_DATA, MSGT_END, MSGT_ERR).
 	*/
 	PARAM_NONE = 0,
 
@@ -212,14 +210,13 @@ typedef enum __attribute__((__packed__)) _transfer_param {
 /*
  * @brief Defines the error codes for the performace test.
  * @note This error code is used to indicate the type of the error.
- * @note Only used in MSGT_ERR messages, otherwise the error code is ERRC_SUCCESS.
  * @note The error code also provides a short description of the error, as a string payload in the message.
 */
 typedef enum __attribute__((__packed__)) _error_code {
 	/* 
 	 * @brief Success - No error, normal operation.
 	 * @note This indicates that the operation was successful.
-	 * @note This is the default value for non-error messages (MSGT_INIT, MSGT_ACK, MSGT_DATA, MSGT_END).
+	 * @note This is the only error code that doesn't have a string payload.
 	*/
 	ERRC_SUCCESS = 0,
 
@@ -277,35 +274,32 @@ typedef struct __STNC_PACKET {
 	message_type type;
 
 	/* 
-	 * @brief The protocol of the transfer. 
-	 * @note Only valid for MSGT_INIT.
-	 * @note In all other cases, this should be PROTOCOL_NONE always.
+	 * @brief The protocol of the transfer.
+	 * @note This field is mandatory for all messages, and shouldn't change during the transfer.
 	 * @note Field size is 1 byte.
 	*/
 	transfer_protocol protocol;
 
 	/* 
-	 * @brief The parameter of the transfer. 
-	 * @note Only valid for MSGT_INIT. 
-	 * @note In all other cases, this should be PARAM_NONE always.
+	 * @brief The parameter of the transfer.
+	 * @note This field is mandatory for all messages, and shouldn't change during the transfer.
 	 * @note Field size is 1 byte.
 	*/
 	transfer_param param;
 
 	/* 
 	 * @brief The error code.
-	 * @note Only valid for MSGT_ERR.
-	 * @note In all other cases, this should be ERRC_SUCCESS always.
+	 * @note If the error code isn't ERRC_SUCCESS, an error message will be sent as a string payload.
+	 * @note Incase of an error, both parties should close the connection immediately, preventing any further communication.
 	 * @note Field size is 1 byte.
 	*/ 
 	error_code error;
 
 	/* 
 	 * @brief The size of the payload.
-	 * @note If the message is MSGT_INIT, this is the size of the file that will be sent.
-	 * @note If the message is MSGT_DATA, this is the size of the data itself (without the header).
-	 * @note If the message is MSGT_ERR, this is the size of the error message (the error message is a string), without the header.
-	 * @note In all other cases, this should be 0 always.
+	 * @note For MSGT_INIT, there isn't a payload, so this field is used to indicate the size of the file.
+	 * @note For MSGT_DATA, this is the size of the payload itself.
+	 * @note In all other cases, this should be 0 always, as there is no payload.
 	 * @note Field size is 4 bytes.
 	*/
 	uint32_t size;
@@ -419,5 +413,44 @@ transfer_protocol getTransferProtocol(char *transferType);
  * @note If the given string is not a valid transfer protocol, PROTOCOL_NONE is returned.
 */
 transfer_param getTransferParam(char *transferParam);
+
+/*
+ * @brief Prints the given packet data.
+ * @param packet The packet to print.
+ * @return 0 on success, 1 on failure.
+ * @note This function is used by the performance mode of the STNC program.
+*/
+int printPacketData(stnc_packet *packet);
+
+/*
+ * @brief Prepares a packet according to the given parameters.
+ * @param buffer The buffer to write the packet to.
+ * @param type The type of the packet.
+ * @param protocol The protocol of the packet.
+ * @param param The parameter of the packet.
+ * @param error The error code of the packet.
+ * @param size The size of the payload (can be 0 if no payload is needed).
+ * @param data The payload of the packet (can be NULL if no payload is needed).
+ * @return 0 on success, 1 on failure.
+*/
+int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol, transfer_param param, error_code error, uint32_t size, uint8_t *data);
+
+/*
+ * @brief Sends the given packet to the given socket.
+ * @param socket The socket to send the packet to.
+ * @param packet The packet to send.
+ * @param quietMode Indicates whether to print activity messages or not.
+ * @return number of bytes sent on success, -1 on failure.
+*/
+int sendTCPData(int socket, char *packet, bool quietMode);
+
+/*
+ * @brief Receives a packet from the given socket.
+ * @param socket The socket to receive the packet from.
+ * @param packet The packet to receive.
+ * @param quietMode Indicates whether to print activity messages or not.
+ * @return number of bytes received on success, -1 on failure.
+*/
+int recvTCPData(int socket, char *packet, bool quietMode);
 
 #endif

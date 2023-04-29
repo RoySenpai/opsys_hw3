@@ -19,8 +19,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include "stnc.h"
 
 void printUsage(char *programName) {
@@ -155,4 +158,124 @@ transfer_param getTransferParam(char *transferParam) {
 		return PARAM_DGRAM;
 
 	return PARAM_NONE;
+}
+
+int printPacketData(stnc_packet *packet) {
+	static const char *packetTypes[] = { "Initalization", "Acknowledgement", "Data transfer", "End communication" };
+	static const char *transferProtocols[] = { "None", "IPv4", "IPv6", "Unix domain socket", "Memory mapped file", "Pipe" };
+	static const char *transferParams[] = { "None", "TCP", "UDP", "Stream", "Datagram", "File" };
+	static const char *errorCodes[] = { "Success", "Socket error", "Send error", "Receive error", "Memory Mapping error", "Piping error", "Thread error" };
+
+	if (packet == NULL)
+	{
+		fprintf(stderr, "Invalid packet.\n");
+		return 1;
+	}
+
+	fprintf(stdout, "Packet type: %s\n", packetTypes[packet->type]);
+	fprintf(stdout, "Transfer protocol: %s\n", transferProtocols[packet->protocol]);
+	fprintf(stdout, "Transfer param: %s\n", transferParams[packet->param]);
+	fprintf(stdout, "Error code: %s\n", errorCodes[packet->error]);
+	fprintf(stdout, "Size: %u bytes\n", packet->size);
+	
+	if (packet->type == MSGT_DATA && packet->size > 0)
+	{
+		uint8_t *ptr = (uint8_t *)packet;
+		ptr += sizeof(stnc_packet);
+
+		fprintf(stdout, "Data: ");
+
+		for (uint32_t i = 0; i < packet->size; i++)
+			fputc(*(ptr + i), stdout);
+
+		fprintf(stdout, "\n");
+	}
+
+	return 0;
+}
+
+int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol, transfer_param param, error_code error, uint32_t size, uint8_t *data) {
+	if (buffer == NULL)
+	{
+		fprintf(stderr, "Invalid packet.\n");
+		return 1;
+	}
+	
+	else if (size > STNC_PROTO_MAX_SIZE && data != NULL)
+	{
+		fprintf(stderr, "Invalid data size (%u/%u).\n", size, STNC_PROTO_MAX_SIZE);
+		return 1;
+	}
+
+	stnc_packet *packet = (stnc_packet *)buffer;
+
+	packet->type = type;
+	packet->protocol = protocol;
+	packet->param = param;
+	packet->error = error;
+	packet->size = size;
+
+	if (data != NULL && size > 0)
+		memcpy(buffer + sizeof(stnc_packet), data, size);
+
+	return 0;
+}
+
+int sendTCPData(int socket, char *packet, bool quietMode) {
+	int bytesToSend = sizeof(stnc_packet) + ((stnc_packet *)packet)->size;
+	int bytesSent = send(socket, packet, bytesToSend, 0);
+
+	if (bytesSent <= 0)
+	{
+		if (!quietMode)
+			perror("send()");
+
+		return -1;
+	}
+
+	else if (bytesSent != bytesToSend)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Failed to send all data. Sent %d bytes out of %d.\n", bytesSent, bytesToSend);
+
+		return -1;
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "Sent %d bytes.\n", bytesSent);
+
+	return bytesSent;
+}
+
+int receiveTCPData(int socket, char *packet, bool quietMode) {
+	ssize_t bytesReceived = recv(socket, packet, STNC_PROTO_MAX_SIZE, 0);
+
+	if (bytesReceived <= 0)
+	{
+		if (!quietMode)
+			perror("recv()");
+
+		return -1;
+	}
+
+	else if ((size_t)bytesReceived < sizeof(stnc_packet))
+	{
+		if (!quietMode)
+			fprintf(stderr, "Received packet is too small.\n");
+
+		return -1;
+	}
+
+	else if (bytesReceived > STNC_PROTO_MAX_SIZE)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Received packet is too large.\n");
+		
+		return -1;
+	}
+
+	else if (!quietMode)
+		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
+
+	return bytesReceived;
 }
