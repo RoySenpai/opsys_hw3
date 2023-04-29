@@ -44,10 +44,10 @@ void printLicense() {
 					"under certain conditions; see `LICENSE' for details.\n\n");
 }
 
-int generateRandomData(char *file_name, uint64_t size) {
+int generateRandomData(char *file_name, uint32_t size) {
     FILE *fd = NULL;
     uint8_t *buffer = NULL;
-    uint64_t remainingBytes = size;
+    uint32_t remainingBytes = size;
 
     if (remainingBytes == 0)
 	{
@@ -84,7 +84,7 @@ int generateRandomData(char *file_name, uint64_t size) {
         return EXIT_FAILURE;
     }
 
-	fprintf(stdout, "Generating %lu bytes (%lu MB) of random data...\n", size, (size / 1024 / 1024));
+	fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
 	fprintf(stdout, "Chunk size: %d bytes (%d KB)\n", CHUNK_SIZE, (CHUNK_SIZE / 1024));
 
 	while (remainingBytes > 0)
@@ -103,7 +103,7 @@ int generateRandomData(char *file_name, uint64_t size) {
 		remainingBytes -= bytesToWrite;
 	}
 
-	fprintf(stdout, "Successfully generated %lu bytes (%lu MB) of random data.\n", size, (size / 1024 / 1024));
+	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
 
     free(buffer);
     fclose(fd);

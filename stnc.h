@@ -65,24 +65,48 @@
 */
 #define FILE_SIZE 104857600
 
+
+/****************************/
+/* Enumerations declaration */
+/****************************/
+
 /*
  * @brief Defines the type of the message for the performace test.
 */
 typedef enum __attribute__((__packed__)) _message_type {
 
-	/* Initialization - communication started, exchange transfer type. */
+	/* 
+	 * @brief Initialization - communication started, exchange transfer type.
+	 * @note This message is sent only once, at the beginning of the communication.
+	 * @note This message is sent by the client only.
+	*/
 	MSGT_INIT = 0,
 
-	/* Acknowledgement - transfer type received, ready to start. */
+	/* 
+	 * @brief Acknowledgement - transfer type received, ready to start. 
+	 * @note This message can be sent multiple times, in different stages of the communication.
+	 * @note This message can be sent by both the client and the server.
+	*/
 	MSGT_ACK,
 
-	/* Data - data transfer. */
+	/* 
+	 * @brief Data - data transfer.
+	 * @note This message indicates that data is being sent (statistics, file name, address, etc.).
+	*/
 	MSGT_DATA,
 
-	/* End - communication ended. */
+	/* 
+	 * @brief End - communication ended. 
+	 * @note This message is sent only once, at the end of the communication.
+	 * @note This message is sent by the client only (the server will close the connection upon receiving this message).
+	*/
 	MSGT_END,
 
-	/* Error - error occurred. */
+	/*
+	 * @brief Error - error occurred.
+	 * @note This message is sent only once, when an error occurs, and the communication is terminated immediately.
+	 * @note This message can be sent by both the client and the server, as error can occur in both sides.
+	*/
 	MSGT_ERR
 } message_type;
 
@@ -94,22 +118,44 @@ typedef enum __attribute__((__packed__)) _message_type {
  * @note PROTOCOL_NONE is used for error.
 */
 typedef enum __attribute__((__packed__)) _transfer_protocol {
-	/* No protocol - Error */
-	PROTOCOL_NONE = -1,
+	/* 
+	 * @brief No protocol - Invalid protocol.
+	 * @note This indicates an error by providing an invalid protocol, in the client side.
+	 * @note In all other cases, this is the default value for non-initializion messages (MSGT_ACK, MSGT_DATA, MSGT_END, MSGT_ERR).
+	*/
+	PROTOCOL_NONE = 0,
 
-	/* IPv4 transfer */
-	PROTOCOL_IPV4 = 0,
+	/*
+	 * @brief IPv4 protocol - TCP/UDP transfer.
+	 * @note This indicates that the transfer is either TCP or UDP in IPv4.
+	*/
+	PROTOCOL_IPV4 = 1,
 
-	/* IPv6 transfer */
+	/*
+	 * @brief IPv6 protocol - TCP/UDP transfer.
+	 * @note This indicates that the transfer is either TCP or UDP in IPv6.
+	*/
 	PROTOCOL_IPV6,
 
-	/* Unix socket transfer */
+	/*
+	 * @brief Unix protocol - Stream/Datagram socket transfer.
+	 * @note This indicates that the transfer is either stream or datagram socket in Unix domain.
+	 * @note Can only work in the same machine, as it uses the file system.
+	*/
 	PROTOCOL_UNIX,
 
-	/* Shared memory transfer */
+	/*
+	 * @brief Shared memory protocol - Shared memory transfer.
+	 * @note This indicates that the transfer is shared memory.
+	 * @note Can only work in the same machine, as it uses the file system.
+	*/
 	PROTOCOL_MMAP,
 
-	/* Pipe transfer */
+	/*
+	 * @brief Pipe protocol - Pipe transfer.
+	 * @note This indicates that the transfer is pipe.
+	 * @note Can only work in the same machine, as it uses the file system.
+	*/
 	PROTOCOL_PIPE
 } transfer_protocol;
 
@@ -119,49 +165,98 @@ typedef enum __attribute__((__packed__)) _transfer_protocol {
  * @note For mmap and pipe, the parameter is always PARAM_NONE.
 */
 typedef enum __attribute__((__packed__)) _transfer_param {
-	/* No parameter - Error/indicates a file name */
-	PARAM_NONE = -1,
+	/* 
+	 * @brief No parameter - Invalid parameter.
+	 * @note This indicates an error by providing an invalid parameter, in the client side, if the protocol isn't mmap or pipe.
+	 * @note In all other cases, this is the default value for non-initializion messages (MSGT_ACK, MSGT_DATA, MSGT_END, MSGT_ERR).
+	*/
+	PARAM_NONE = 0,
 
-	/* TCP transfer */
-	PARAM_TCP = 0,
+	/*
+	 * @brief TCP parameter - TCP transfer.
+	 * @note This indicates that the transfer is TCP.
+	 * @note Only valid for IPv4 and IPv6 protocols.
+	*/
+	PARAM_TCP = 1,
 
-	/* UDP transfer */
+	/*
+	 * @brief UDP parameter - UDP transfer.
+	 * @note This indicates that the transfer is UDP.
+	 * @note Only valid for IPv4 and IPv6 protocols.
+	*/
 	PARAM_UDP,
 
-	/* Stream socket transfer */
+	/* 
+	 * @brief Stream parameter - Stream socket transfer.
+	 * @note This indicates that the transfer is stream socket.
+	 * @note Only valid for Unix protocol.
+	*/
 	PARAM_STREAM,
 
-	/* Datagram socket transfer */
+	/* 
+	 * @brief Datagram parameter - Datagram socket transfer.
+	 * @note This indicates that the transfer is datagram socket.
+	 * @note Only valid for Unix protocol.
+	*/
 	PARAM_DGRAM,
 
-	/* File transfer via shared memory or pipe */
+	/*
+	 * @brief File parameter - File transfer.
+	 * @note This indicates that the transfer is file.
+	 * @note Only valid for mmap and pipe protocols.
+	*/
 	PARAM_FILE
 } transfer_param;
 
 
 /*
  * @brief Defines the error codes for the performace test.
+ * @note This error code is used to indicate the type of the error.
+ * @note Only used in MSGT_ERR messages, otherwise the error code is ERRC_SUCCESS.
+ * @note The error code also provides a short description of the error, as a string payload in the message.
 */
 typedef enum __attribute__((__packed__)) _error_code {
-	/* No error, normal operation */
+	/* 
+	 * @brief Success - No error, normal operation.
+	 * @note This indicates that the operation was successful.
+	 * @note This is the default value for non-error messages (MSGT_INIT, MSGT_ACK, MSGT_DATA, MSGT_END).
+	*/
 	ERRC_SUCCESS = 0,
 
-	/* Socket error */
+	/*
+	 * @brief Socket - Socket error.
+	 * @note This indicates that an error occurred in the socket itself.
+	*/
 	ERRC_SOCKET,
 
-	/* Error in send() or sendto() */
+	/*
+	 * @brief Send - Error in send() or sendto().
+	 * @note This indicates that an error occurred in the send() or sendto() functions.
+	*/
 	ERRC_SEND,
 
-	/* Error in recv() or recvfrom() */
+	/*
+	 * @brief Recv - Error in recv() or recvfrom().
+	 * @note This indicates that an error occurred in the recv() or recvfrom() functions.
+	*/
 	ERRC_RECV,
 
-	/* Error in MMAP */
+	/*
+	 * @brief MMAP - Error in MMAP.
+	 * @note This indicates that an error occurred in one of the mmap() functions.
+	*/
 	ERRC_MMAP,
 
-	/* Error in Pipe */
+	/*
+	 * @brief Pipe - Error in Pipe.
+	 * @note This indicates that an error occurred in one of the pipe() functions.
+	*/
 	ERRC_PIPE,
 
-	/* Error in thread */
+	/*
+	 * @brief Thread - Error in thread.
+	 * @note This indicates that an error occurred in one of the pthread functions.
+	*/
 	ERRC_THREAD
 } error_code;
 
@@ -171,29 +266,51 @@ typedef enum __attribute__((__packed__)) _error_code {
  * @note This structure is used to send messages between the client and the server.
  * @note The message structure is used only for the performance test.
  * @note This is a custom protocol, and not a standard protocol, we call it the STNC protocol.
- * @note STNC header size is 16 bytes.
+ * @note STNC header size is 8 bytes.
 */
 typedef struct __STNC_PACKET {
-	/* The type of the message. */
+	/* 
+	 * @brief The type of the message.
+	 * @note This field is mandatory for all messages.
+	 * @note Field size is 1 byte.
+	*/
 	message_type type;
 
-	/* The protocol of the transfer. Only valid for MSGT_INIT. */
+	/* 
+	 * @brief The protocol of the transfer. 
+	 * @note Only valid for MSGT_INIT.
+	 * @note In all other cases, this should be PROTOCOL_NONE always.
+	 * @note Field size is 1 byte.
+	*/
 	transfer_protocol protocol;
 
-	/* The parameter of the transfer. Only valid for MSGT_INIT. */
+	/* 
+	 * @brief The parameter of the transfer. 
+	 * @note Only valid for MSGT_INIT. 
+	 * @note In all other cases, this should be PARAM_NONE always.
+	 * @note Field size is 1 byte.
+	*/
 	transfer_param param;
 
-	/* The error code. Only valid for MSGT_ERR. */
+	/* 
+	 * @brief The error code.
+	 * @note Only valid for MSGT_ERR.
+	 * @note In all other cases, this should be ERRC_SUCCESS always.
+	 * @note Field size is 1 byte.
+	*/ 
 	error_code error;
 
 	/* 
 	 * @brief The size of the payload.
 	 * @note If the message is MSGT_INIT, this is the size of the file that will be sent.
 	 * @note If the message is MSGT_DATA, this is the size of the data itself (without the header).
+	 * @note If the message is MSGT_ERR, this is the size of the error message (the error message is a string), without the header.
 	 * @note In all other cases, this should be 0 always.
+	 * @note Field size is 4 bytes.
 	*/
-	uint64_t size;
+	uint32_t size;
 } stnc_packet;
+
 
 /*************************/
 /* Functions declaration */
@@ -275,7 +392,7 @@ void printLicense();
  * @note The data is generated in blocks of 64KB.
  * @note If the size is not a multiple of 64KB, the last block will be smaller.
 */
-int generateRandomData(char *file_name, uint64_t size);
+int generateRandomData(char *file_name, uint32_t size);
 
 /*
  * @brief Checks if a file exists.

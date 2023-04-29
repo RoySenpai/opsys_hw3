@@ -37,6 +37,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
+	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
+		param = PARAM_FILE;
+
 	if (!isFileExists(((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME)))
 	{
 		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", ((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME));
