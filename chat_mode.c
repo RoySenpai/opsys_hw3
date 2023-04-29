@@ -34,7 +34,7 @@ int client_chat_mode(char *ip, char *port) {
 	uint16_t portNumber = atoi(port);
 	ssize_t writeBytes = 0, readBytes = 0;
 
-	int sockfd = INVALID_SOCKET, reuse = 1;
+	int sockfd = INVALID_SOCKET;
 
 	if (portNumber < MIN_PORT_NUMBER)
 	{
@@ -45,12 +45,6 @@ int client_chat_mode(char *ip, char *port) {
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
 	{
 		perror("socket");
-		return EXIT_FAILURE;
-	}
-
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-	{
-		perror("setsockopt");
 		return EXIT_FAILURE;
 	}
 
@@ -126,7 +120,7 @@ int server_chat_mode(char *port) {
 	socklen_t clientLen = sizeof(client);
 	ssize_t writeBytes = 0, readBytes = 0;
 
-	int sockfd = INVALID_SOCKET, clientfd = INVALID_SOCKET;
+	int sockfd = INVALID_SOCKET, clientfd = INVALID_SOCKET, reuse = 1;
 
 	if (portNumber < MIN_PORT_NUMBER)
 	{
@@ -140,11 +134,18 @@ int server_chat_mode(char *port) {
 		return EXIT_FAILURE;
 	}
 
+
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+	{
+		perror("setsockopt");
+		return EXIT_FAILURE;
+	}
+
 	memset(&server, 0, sizeof(server));
 	memset(&client, 0, sizeof(client));
 
 	server.sin_family = AF_INET;
-	server.sin_addr.s_addr = INADDR_ANY;
+	server.sin_addr.s_addr = htonl(INADDR_ANY);
 	server.sin_port = htons(portNumber);
 
 	if (bind(sockfd, (struct sockaddr *)&server, sizeof(server)) < 0)

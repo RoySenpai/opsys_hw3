@@ -221,8 +221,15 @@ int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol
 	return 0;
 }
 
-int sendTCPData(int socket, char *packet, bool quietMode) {
-	int bytesToSend = sizeof(stnc_packet) + ((stnc_packet *)packet)->size;
+int sendTCPData(int socket, uint8_t *packet, bool quietMode) {
+	int bytesToSend = 0;
+
+	if (((stnc_packet *)packet)->type == MSGT_DATA)
+		bytesToSend = sizeof(stnc_packet) + ((stnc_packet *)packet)->size;
+
+	else
+		bytesToSend = sizeof(stnc_packet);
+	
 	int bytesSent = send(socket, packet, bytesToSend, 0);
 
 	if (bytesSent <= 0)
@@ -247,7 +254,7 @@ int sendTCPData(int socket, char *packet, bool quietMode) {
 	return bytesSent;
 }
 
-int receiveTCPData(int socket, char *packet, bool quietMode) {
+int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
 	ssize_t bytesReceived = recv(socket, packet, STNC_PROTO_MAX_SIZE, 0);
 
 	if (bytesReceived <= 0)
@@ -278,4 +285,39 @@ int receiveTCPData(int socket, char *packet, bool quietMode) {
 		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
 
 	return bytesReceived;
+}
+
+message_type GetPacketType(uint8_t *buffer) {
+	if (buffer == NULL)
+		return MSGT_INVALID;
+
+	return ((stnc_packet *)buffer)->type;
+}
+
+transfer_protocol GetPacketProtocol(uint8_t *buffer) {
+	if (buffer == NULL)
+		return PROTOCOL_NONE;
+
+	return ((stnc_packet *)buffer)->protocol;
+}
+
+transfer_param GetPacketParam(uint8_t *buffer) {
+	if (buffer == NULL)
+		return PARAM_NONE;
+
+	return ((stnc_packet *)buffer)->param;
+}
+
+error_code GetPacketError(uint8_t *buffer) {
+	if (buffer == NULL)
+		return ERRC_INVALID;
+
+	return ((stnc_packet *)buffer)->error;
+}
+
+uint32_t GetPacketSize(uint8_t *buffer) {
+	if (buffer == NULL)
+		return 0;
+
+	return ((stnc_packet *)buffer)->size;
 }

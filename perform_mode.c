@@ -28,39 +28,269 @@
 #include "stnc.h"
 
 int client_performance_mode(char *ip, char *port, char *transferProtocol, char *transferParam) {
+	char fileName[FILE_NAME_MAX_SIZE] = { 0 };
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+	int chatSocket = INVALID_SOCKET;
+	uint16_t portNumber = atoi(port);
 	transfer_protocol protocol = getTransferProtocol(transferProtocol);
 	transfer_param param = getTransferParam(transferParam);
 
-	if (protocol == PROTOCOL_NONE || (param == PARAM_NONE && protocol != PROTOCOL_MMAP && protocol != PROTOCOL_PIPE))
+	strcpy(fileName, ((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME));
+
+	if (portNumber < MIN_PORT_NUMBER)
+	{
+		fprintf(stderr, "Invalid port number.\n");
+		return EXIT_FAILURE;
+	}
+
+	else if (protocol == PROTOCOL_NONE || (param == PARAM_NONE && protocol != PROTOCOL_MMAP && protocol != PROTOCOL_PIPE))
 	{
 		fprintf(stderr, "Invalid transfer protocol or transfer param.\n");
+		return EXIT_FAILURE;
+	}
+
+	else if (((protocol == PROTOCOL_IPV4 || protocol == PROTOCOL_IPV6) && (param != PARAM_TCP && param != PARAM_UDP)) || (protocol == PROTOCOL_UNIX && (param != PARAM_STREAM && param != PARAM_DGRAM)))
+	{
+		fprintf(stderr, "Invalid transfer param.\n");
 		return EXIT_FAILURE;
 	}
 
 	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		param = PARAM_FILE;
 
-	if (!isFileExists(((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME)))
+	if (!isFileExists(fileName))
 	{
-		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", ((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME));
+		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", fileName);
 		
-		if (generateRandomData(((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME), FILE_SIZE) == EXIT_FAILURE)
+		if (generateRandomData(fileName, FILE_SIZE) == EXIT_FAILURE)
 		{
 			fprintf(stderr, "Failed to generate random data.\n");
 			return EXIT_FAILURE;
 		}
 	}
 
-	fprintf(stdout, "IP: %s; Port: %s; Transfer protocol: %s; Transfer param: %s\n", ip, port, transferProtocol, transferParam);
-	fprintf(stdout, "Client performance mode not implemented yet.\n");
-	fprintf(stdout, "Exiting...\n");
+	struct sockaddr_in serverAddress;
+	memset(&serverAddress, 0, sizeof(serverAddress));
+
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_port = htons(portNumber);
+
+	if (inet_pton(AF_INET, ip, &serverAddress.sin_addr) <= 0)
+	{
+		perror("inet_pton");
+		return EXIT_FAILURE;
+	}
+
+	if ((chatSocket = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
+	{
+		perror("socket");
+		return EXIT_FAILURE;
+	}
+
+	if (connect(chatSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+	{
+		perror("connect");
+		return EXIT_FAILURE;
+	}
+
+	PreparePacket(buffer, MSGT_INIT, protocol, param, ERRC_SUCCESS, FILE_SIZE, NULL);
+
+	printPacketData((stnc_packet*)buffer);
+
+	fprintf(stdout, "Sending init packet...\n");
+
+	if (sendTCPData(chatSocket, buffer, false) == -1)
+	{
+		fprintf(stderr, "Failed to send init packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK || GetPacketError(buffer) != ERRC_SUCCESS)
+	{
+		fprintf(stderr, "Failed to receive ACK packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "ACK packet received.\n");
+
+	printPacketData((stnc_packet*)buffer);
+
+	PreparePacket(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(fileName) + 1), (uint8_t*)fileName);
+
+	printPacketData((stnc_packet*)buffer);
+
+	fprintf(stdout, "Sending data packet...\n");
+
+	if (sendTCPData(chatSocket, buffer, false) == -1)
+	{
+		fprintf(stderr, "Failed to send data packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK || GetPacketError(buffer) != ERRC_SUCCESS)
+	{
+		fprintf(stderr, "Failed to receive ACK packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "ACK packet received.\n");
+
+	printPacketData((stnc_packet*)buffer);
+
+	PreparePacket(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
+
+	printPacketData((stnc_packet*)buffer);
+
+	fprintf(stdout, "Sending end packet...\n");
+
+	if (sendTCPData(chatSocket, buffer, false) == -1)
+	{
+		fprintf(stderr, "Failed to send end packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "Closing connection...\n");
+	close(chatSocket);
 
 	return EXIT_SUCCESS;
 }
 
 int server_performance_mode(char *port, bool quietMode) {
-	fprintf(stdout, "Port: %s; Quiet mode: %s\n", port, quietMode ? "true" : "false");
-	fprintf(stdout, "Server performance mode not implemented yet.\n");
-	fprintf(stdout, "Exiting...\n");
+	struct sockaddr_in serverAddress, clientAddress;
+	socklen_t clientAddressLength = sizeof(clientAddress);
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+	stnc_packet *packetData = (stnc_packet *)buffer;
+	int chatSocket = INVALID_SOCKET, serverSocket = INVALID_SOCKET, reuse = 1;
+	uint16_t portNumber = atoi(port);
+
+	memset(&serverAddress, 0, sizeof(serverAddress));
+	memset(&clientAddress, 0, sizeof(clientAddress));
+
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_port = htons(portNumber);
+	serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	if (portNumber < MIN_PORT_NUMBER)
+	{
+		fprintf(stderr, "Invalid port number.\n");
+		return EXIT_FAILURE;
+	}
+
+	if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
+	{
+		perror("socket");
+		return EXIT_FAILURE;
+	}
+
+	if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+	{
+		perror("setsockopt");
+		return EXIT_FAILURE;
+	}
+	
+	if (bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+	{
+		perror("bind");
+		return EXIT_FAILURE;
+	}
+
+	if (listen(serverSocket, 1) < 0)
+	{
+		perror("listen");
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "Waiting for connection...\n");
+
+	if ((chatSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)
+	{
+		perror("accept");
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_INIT || GetPacketError(buffer) != ERRC_SUCCESS)
+	{
+		fprintf(stderr, "Failed to receive init packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (!quietMode)
+		printPacketData(packetData);
+
+	transfer_protocol protocol = GetPacketProtocol(buffer);
+	transfer_param param = GetPacketParam(buffer);
+	uint32_t fileSize = GetPacketSize(buffer);
+
+	fprintf(stdout, "File size: %d bytes\n", fileSize);
+
+	PreparePacket(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
+
+	if (!quietMode)
+		printPacketData(packetData);
+
+	fprintf(stdout, "Sending ACK packet...\n");
+
+	if (sendTCPData(chatSocket, buffer, quietMode) == -1)
+	{
+		fprintf(stderr, "Failed to send ACK packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	char fileName[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_DATA || GetPacketError(buffer) != ERRC_SUCCESS)
+	{
+		fprintf(stderr, "Failed to receive data packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (!quietMode)
+		printPacketData(packetData);
+
+	strcpy(fileName, ((char *)packetData + sizeof(stnc_packet)));
+
+	PreparePacket(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
+
+	if (!quietMode)
+		printPacketData(packetData);
+
+	fprintf(stdout, "Sending ACK packet...\n");
+
+	if (sendTCPData(chatSocket, buffer, quietMode) == -1)
+	{
+		fprintf(stderr, "Failed to send ACK packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "Waiting for end packet...\n");
+
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_END || GetPacketError(buffer) != ERRC_SUCCESS)
+	{
+		fprintf(stderr, "Failed to receive end packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "End packet received.\n");
+
+	if (!quietMode)
+		printPacketData(packetData);
+
+	fprintf(stdout, "Closing connection...\n");
+	close(chatSocket);
+	close(serverSocket);
+
+
 	return EXIT_SUCCESS;
 }

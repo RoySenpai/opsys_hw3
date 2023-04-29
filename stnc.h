@@ -66,6 +66,12 @@
 #define FILE_SIZE 104857600
 
 /*
+ * @brief Defines the maximum size of a file name, in performance mode.
+ * @note The default value is 256 characters.
+*/
+#define FILE_NAME_MAX_SIZE 256
+
+/*
  * @brief Defines the maximum size of a message, in performance mode.
  * @note The default value is 1024 bytes.
 */
@@ -80,6 +86,12 @@
  * @brief Defines the type of the message for the performace test.
 */
 typedef enum __attribute__((__packed__)) _message_type {
+	/* 
+	 * @brief Invalid - invalid message type.
+	 * @note This message is used to indicate an invalid message type.
+	 * @note Used internally by the STNC program, and not sent over the network.
+	*/
+	MSGT_INVALID = -1,
 
 	/* 
 	 * @brief Initialization - communication started, exchange transfer type.
@@ -213,6 +225,14 @@ typedef enum __attribute__((__packed__)) _transfer_param {
  * @note The error code also provides a short description of the error, as a string payload in the message.
 */
 typedef enum __attribute__((__packed__)) _error_code {
+
+	/* 
+	 * @brief Invalid - invalid error code.
+	 * @note This error is used to indicate an invalid error code.
+	 * @note Used internally by the STNC program, and not sent over the network.
+	*/
+	ERRC_INVALID = -1,
+
 	/* 
 	 * @brief Success - No error, normal operation.
 	 * @note This indicates that the operation was successful.
@@ -442,7 +462,7 @@ int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol
  * @param quietMode Indicates whether to print activity messages or not.
  * @return number of bytes sent on success, -1 on failure.
 */
-int sendTCPData(int socket, char *packet, bool quietMode);
+int sendTCPData(int socket, uint8_t *packet, bool quietMode);
 
 /*
  * @brief Receives a packet from the given socket.
@@ -451,6 +471,51 @@ int sendTCPData(int socket, char *packet, bool quietMode);
  * @param quietMode Indicates whether to print activity messages or not.
  * @return number of bytes received on success, -1 on failure.
 */
-int recvTCPData(int socket, char *packet, bool quietMode);
+int receiveTCPData(int socket, uint8_t *packet, bool quietMode);
+
+/*
+ * @brief Retrieves the type of the given packet.
+ * @param buffer The buffer to read the packet from.
+ * @return The type of the given packet.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note If the given buffer is not a valid packet, MSGT_INVALID is returned.
+*/
+message_type GetPacketType(uint8_t *buffer);
+
+/*
+ * @brief Retrieves the protocol of the given packet.
+ * @param buffer The buffer to read the packet from.
+ * @return The protocol of the given packet.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note If the given buffer is not a valid packet, PROTOCOL_NONE is returned.
+*/
+transfer_protocol GetPacketProtocol(uint8_t *buffer);
+
+/*
+ * @brief Retrieves the parameter of the given packet.
+ * @param buffer The buffer to read the packet from.
+ * @return The parameter of the given packet.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note If the given buffer is not a valid packet, PARAM_NONE is returned.
+*/
+transfer_param GetPacketParam(uint8_t *buffer);
+
+/*
+ * @brief Retrieves the error code of the given packet.
+ * @param buffer The buffer to read the packet from.
+ * @return The error code of the given packet.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note If the given buffer is not a valid packet, ERR_INVALID is returned.
+*/
+error_code GetPacketError(uint8_t *buffer);
+
+/*
+ * @brief Retrieves the size of the payload of the given packet.
+ * @param buffer The buffer to read the packet from.
+ * @return The size of the payload of the given packet.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note Payload size can be 0, as some packets do not have a payload.
+*/
+uint32_t GetPacketSize(uint8_t *buffer);
 
 #endif
