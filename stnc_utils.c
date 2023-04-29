@@ -47,7 +47,7 @@ void printLicense() {
 int generateRandomData(char *file_name, uint64_t size) {
     FILE *fd = NULL;
     uint8_t *buffer = NULL;
-    u_int64_t remainingBytes = size;
+    uint64_t remainingBytes = size;
 
     if (remainingBytes == 0)
 	{

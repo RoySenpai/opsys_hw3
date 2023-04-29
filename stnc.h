@@ -68,16 +68,13 @@
 /*
  * @brief Defines the type of the message for the performace test.
 */
-typedef enum _message_type {
+typedef enum __attribute__((__packed__)) _message_type {
 
 	/* Initialization - communication started, exchange transfer type. */
 	MSGT_INIT = 0,
 
 	/* Acknowledgement - transfer type received, ready to start. */
 	MSGT_ACK,
-
-	/* Data size - data size transfer. */
-	MSGT_DATA_SIZE,
 
 	/* Data - data transfer. */
 	MSGT_DATA,
@@ -90,38 +87,13 @@ typedef enum _message_type {
 } message_type;
 
 /*
- * @brief Defines the type of the transfer for the performace test.
+ * @brief Defines the protocol of the transfer for the performace test.
+ * @note This protocol is used to indicate the type of the transfer.
+ * @note For TCP and UDP, the protocol is either PROTOCOL_IPV4 or PROTOCOL_IPV6 only.
+ * @note For stream and datagram sockets, the protocol is PROTOCOL_UNIX only.
+ * @note PROTOCOL_NONE is used for error.
 */
-typedef enum _transfer_type {
-	/* Initialization - Used for the first message only. */
-	TYPE_INIT = 0,
-
-	/* TCP transfer in IPv4 */
-	TYPE_IPV4_TCP,
-
-	/* UDP transfer in IPv4 */
-	TYPE_IPV4_UDP,
-
-	/* TCP transfer in IPv6 */
-	TYPE_IPV6_TCP,
-
-	/* UDP transfer in IPv6 */
-	TYPE_IPV6_UDP,
-
-	/* Unix stream socket */
-	TYPE_UNIX_STREAM,
-
-	/* Unix datagram socket */
-	TYPE_UNIX_DGRAM,
-
-	/* Shared memory */
-	TYPE_MMAP,
-
-	/* Pipe */
-	TYPE_PIPE
-} transfer_type;
-
-typedef enum _transfer_protocol {
+typedef enum __attribute__((__packed__)) _transfer_protocol {
 	/* No protocol - Error */
 	PROTOCOL_NONE = -1,
 
@@ -141,7 +113,12 @@ typedef enum _transfer_protocol {
 	PROTOCOL_PIPE
 } transfer_protocol;
 
-typedef enum _transfer_param {
+/*
+ * @brief Defines the parameter of the transfer for the performace test.
+ * @note This parameter is used to indicate the type of the transfer.
+ * @note For mmap and pipe, the parameter is always PARAM_NONE.
+*/
+typedef enum __attribute__((__packed__)) _transfer_param {
 	/* No parameter - Error/indicates a file name */
 	PARAM_NONE = -1,
 
@@ -165,22 +142,40 @@ typedef enum _transfer_param {
 /*
  * @brief Defines the error codes for the performace test.
 */
-typedef enum _error_code {
+typedef enum __attribute__((__packed__)) _error_code {
+	/* No error, normal operation */
 	ERRC_SUCCESS = 0,
+
+	/* Socket error */
 	ERRC_SOCKET,
+
+	/* Error in send() or sendto() */
 	ERRC_SEND,
+
+	/* Error in recv() or recvfrom() */
 	ERRC_RECV,
+
+	/* Error in MMAP */
 	ERRC_MMAP,
-	ERRC_PIPE
+
+	/* Error in Pipe */
+	ERRC_PIPE,
+
+	/* Error in thread */
+	ERRC_THREAD
 } error_code;
 
-typedef struct _message {
 
+/*
+ * @brief Defines the message structure for the performace test.
+ * @note This structure is used to send messages between the client and the server.
+ * @note The message structure is used only for the performance test.
+ * @note This is a custom protocol, and not a standard protocol, we call it the STNC protocol.
+ * @note STNC header size is 16 bytes.
+*/
+typedef struct __STNC_PACKET {
 	/* The type of the message. */
 	message_type type;
-
-	/* The type of the transfer. Only valid for MSGT_INIT. */
-	transfer_type transfer;
 
 	/* The protocol of the transfer. Only valid for MSGT_INIT. */
 	transfer_protocol protocol;
@@ -191,12 +186,14 @@ typedef struct _message {
 	/* The error code. Only valid for MSGT_ERR. */
 	error_code error;
 
-	/* The size of the data/file. Only valid for MSGT_DATA_SIZE. */
+	/* 
+	 * @brief The size of the payload.
+	 * @note If the message is MSGT_INIT, this is the size of the file that will be sent.
+	 * @note If the message is MSGT_DATA, this is the size of the data itself (without the header).
+	 * @note In all other cases, this should be 0 always.
+	*/
 	uint64_t size;
-
-	/* The data/file itself (if exists). Only valid for MSGT_DATA .*/
-	char* data;
-} message;
+} stnc_packet;
 
 /*************************/
 /* Functions declaration */
