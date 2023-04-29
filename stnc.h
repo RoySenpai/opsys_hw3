@@ -443,6 +443,14 @@ transfer_param getTransferParam(char *transferParam);
 int printPacketData(stnc_packet *packet);
 
 /*
+ * @brief Prints the payload of the given packet.
+ * @param packet The packet to print.
+ * @return 0 on success, 1 on failure.
+ * @note This function is used by the performance mode of the STNC program.
+*/
+int printPacketPayload(stnc_packet *packet);
+
+/*
  * @brief Prepares a packet according to the given parameters.
  * @param buffer The buffer to write the packet to.
  * @param type The type of the packet.

@@ -196,6 +196,35 @@ int printPacketData(stnc_packet *packet) {
 	return 0;
 }
 
+int printPacketPayload(stnc_packet *packet) {
+	if (packet == NULL)
+	{
+		fprintf(stderr, "Invalid packet.\n");
+		return 1;
+	}
+
+	else if (packet->size == 0 || packet->type != MSGT_DATA)
+	{
+		fprintf(stderr, "Packet has no payload.\n");
+		return 1;
+	}
+
+	else if (packet->size > STNC_PROTO_MAX_SIZE)
+	{
+		fprintf(stderr, "Invalid data size (%u/%u).\n", packet->size, STNC_PROTO_MAX_SIZE);
+		return 1;
+	}
+
+	uint8_t *ptr = (uint8_t *)packet;
+
+	for (uint32_t i = 0; i < packet->size; i++)
+		fputc(*(ptr + i), stdout);
+
+	fprintf(stdout, "\n");
+
+	return 0;
+}
+
 int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol, transfer_param param, error_code error, uint32_t size, uint8_t *data) {
 	if (buffer == NULL)
 	{
