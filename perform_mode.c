@@ -95,9 +95,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	PreparePacket(buffer, MSGT_INIT, protocol, param, ERRC_SUCCESS, FILE_SIZE, NULL);
 
-	printPacketData((stnc_packet*)buffer);
-
 	fprintf(stdout, "Sending init packet...\n");
+
+	printPacketData((stnc_packet*)buffer);
 
 	if (sendTCPData(chatSocket, buffer, false) == -1)
 	{
@@ -106,7 +106,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
-	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK || GetPacketError(buffer) != ERRC_SUCCESS)
+	fprintf(stdout, "Init packet sent.\n");
+
+	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK)
 	{
 		fprintf(stderr, "Failed to receive ACK packet.\n");
 		close(chatSocket);
@@ -119,9 +121,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	PreparePacket(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(fileName) + 1), (uint8_t*)fileName);
 
-	printPacketData((stnc_packet*)buffer);
-
 	fprintf(stdout, "Sending data packet...\n");
+
+	printPacketData((stnc_packet*)buffer);
 
 	if (sendTCPData(chatSocket, buffer, false) == -1)
 	{
@@ -130,7 +132,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
-	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK || GetPacketError(buffer) != ERRC_SUCCESS)
+	fprintf(stdout, "Data packet sent.\n");
+
+	if (receiveTCPData(chatSocket, buffer, false) == -1 || GetPacketType(buffer) != MSGT_ACK)
 	{
 		fprintf(stderr, "Failed to receive ACK packet.\n");
 		close(chatSocket);
@@ -143,9 +147,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	PreparePacket(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
 
-	printPacketData((stnc_packet*)buffer);
-
 	fprintf(stdout, "Sending end packet...\n");
+
+	printPacketData((stnc_packet*)buffer);
 
 	if (sendTCPData(chatSocket, buffer, false) == -1)
 	{
@@ -153,6 +157,8 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
+
+	fprintf(stdout, "End packet sent.\n");
 
 	fprintf(stdout, "Closing connection...\n");
 	close(chatSocket);
@@ -215,12 +221,14 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
 
-	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_INIT || GetPacketError(buffer) != ERRC_SUCCESS)
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_INIT)
 	{
 		fprintf(stderr, "Failed to receive init packet.\n");
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
+
+	fprintf(stdout, "Init packet received.\n");
 
 	if (!quietMode)
 		printPacketData(packetData);
@@ -233,10 +241,10 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	PreparePacket(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
+	fprintf(stdout, "Sending ACK packet...\n");
+
 	if (!quietMode)
 		printPacketData(packetData);
-
-	fprintf(stdout, "Sending ACK packet...\n");
 
 	if (sendTCPData(chatSocket, buffer, quietMode) == -1)
 	{
@@ -245,14 +253,18 @@ int server_performance_mode(char *port, bool quietMode) {
 		return EXIT_FAILURE;
 	}
 
+	fprintf(stdout, "ACK packet sent.\n");
+
 	char fileName[STNC_PROTO_MAX_SIZE] = { 0 };
 
-	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_DATA || GetPacketError(buffer) != ERRC_SUCCESS)
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_DATA)
 	{
 		fprintf(stderr, "Failed to receive data packet.\n");
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
+
+	fprintf(stdout, "Data packet received.\n");
 
 	if (!quietMode)
 		printPacketData(packetData);
@@ -261,10 +273,10 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	PreparePacket(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
+	fprintf(stdout, "Sending ACK packet...\n");
+
 	if (!quietMode)
 		printPacketData(packetData);
-
-	fprintf(stdout, "Sending ACK packet...\n");
 
 	if (sendTCPData(chatSocket, buffer, quietMode) == -1)
 	{
@@ -273,9 +285,11 @@ int server_performance_mode(char *port, bool quietMode) {
 		return EXIT_FAILURE;
 	}
 
+	fprintf(stdout, "ACK packet sent.\n");
+
 	fprintf(stdout, "Waiting for end packet...\n");
 
-	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_END || GetPacketError(buffer) != ERRC_SUCCESS)
+	if (receiveTCPData(chatSocket, buffer, quietMode) == -1 || GetPacketType(buffer) != MSGT_END)
 	{
 		fprintf(stderr, "Failed to receive end packet.\n");
 		close(chatSocket);

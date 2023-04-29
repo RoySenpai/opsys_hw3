@@ -172,6 +172,7 @@ int printPacketData(stnc_packet *packet) {
 		return 1;
 	}
 
+	fprintf(stdout, "----------------------------------------\n");
 	fprintf(stdout, "Packet type: %s\n", packetTypes[packet->type]);
 	fprintf(stdout, "Transfer protocol: %s\n", transferProtocols[packet->protocol]);
 	fprintf(stdout, "Transfer param: %s\n", transferParams[packet->param]);
@@ -190,6 +191,7 @@ int printPacketData(stnc_packet *packet) {
 
 		fprintf(stdout, "\n");
 	}
+	fprintf(stdout, "----------------------------------------\n");
 
 	return 0;
 }
@@ -257,10 +259,18 @@ int sendTCPData(int socket, uint8_t *packet, bool quietMode) {
 int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
 	ssize_t bytesReceived = recv(socket, packet, STNC_PROTO_MAX_SIZE, 0);
 
-	if (bytesReceived <= 0)
+	if (bytesReceived < 0)
 	{
 		if (!quietMode)
 			perror("recv()");
+
+		return -1;
+	}
+
+	else if (bytesReceived == 0)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Connection closed by the remote host.\n");
 
 		return -1;
 	}
@@ -283,6 +293,19 @@ int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
 
 	else if (!quietMode)
 		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
+
+	if (GetPacketError(packet) != ERRC_SUCCESS)
+	{
+		if (!quietMode)
+		{
+			uint8_t *error = packet + sizeof(stnc_packet);
+			fprintf(stderr, "Received packet contains an error:\n");
+			fprintf(stderr, "Error code: %u\n", GetPacketError(packet));
+			fprintf(stderr, "Error message: %s\n", error);
+		}
+
+		return -1;
+	}
 
 	return bytesReceived;
 }
