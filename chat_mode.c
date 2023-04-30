@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -66,44 +67,69 @@ int client_chat_mode(char *ip, char *port) {
 
 	fprintf(stdout, "Connection established to %s:%s\n", ip, port);
 
+	struct pollfd pfds[2];
+
+	pfds[0].fd = STDIN_FILENO;
+	pfds[0].events = POLLIN;
+
+	pfds[1].fd = sockfd;
+	pfds[1].events = POLLIN;
+
 	while (1)
 	{
-		fprintf(stdout, "Enter message: ");
-		fgets(buffer, MAX_MESSAGE_SIZE, stdin);
+		int num_events = poll(pfds, 2, -1);
 
-		buffer[strlen(buffer) - 1] = '\0';
-
-		writeBytes = send(sockfd, buffer, strlen(buffer), 0);
-
-		if (writeBytes < 0)
+		if (num_events < 0)
 		{
-			perror("send");
+			perror("poll");
 			return EXIT_FAILURE;
 		}
 
-		else if (writeBytes == 0)
+		else if (num_events == 1)
 		{
-			fprintf(stdout, "Connection closed by the server.\n");
-			break;
+			if (pfds[0].revents & POLLIN)
+			{
+				fgets(buffer, MAX_MESSAGE_SIZE, stdin);
+
+				buffer[strlen(buffer) - 1] = '\0';
+
+				writeBytes = send(sockfd, buffer, strlen(buffer), 0);
+
+				if (writeBytes < 0)
+				{
+					perror("send");
+					return EXIT_FAILURE;
+				}
+
+				else if (writeBytes == 0)
+				{
+					fprintf(stdout, "Connection closed by the peer.\n");
+					break;
+				}
+			}
+
+			else if (pfds[1].revents & POLLIN)
+			{
+				readBytes = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
+
+				if (readBytes < 0)
+				{
+					perror("recv");
+					return EXIT_FAILURE;
+				}
+
+				else if (readBytes == 0)
+				{
+					fprintf(stdout, "Connection closed by the peer.\n");
+					break;
+				}
+
+				fprintf(stdout, "Peer: %s\n", buffer);
+
+				memset(buffer, 0, MAX_MESSAGE_SIZE);
+
+			}
 		}
-
-		readBytes = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
-
-		if (readBytes < 0)
-		{
-			perror("recv");
-			return EXIT_FAILURE;
-		}
-
-		else if (readBytes == 0)
-		{
-			fprintf(stdout, "Connection closed by the server.\n");
-			break;
-		}
-
-		fprintf(stdout, "Server response: %s\n", buffer);
-
-		memset(buffer, 0, MAX_MESSAGE_SIZE);
 	}
 
 	close(sockfd);
@@ -160,7 +186,7 @@ int server_chat_mode(char *port) {
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "Waiting for incoming connections...\n");
+	fprintf(stdout, "Waiting for incoming connection...\n");
 
 	clientfd = accept(sockfd, (struct sockaddr *)&client, (socklen_t *)&clientLen);
 
@@ -170,45 +196,77 @@ int server_chat_mode(char *port) {
 		return EXIT_FAILURE;
 	}
 
+	// Close the listening socket, as we don't need it anymore (we now act as a client).
+	close(sockfd);
+
 	fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+
+	struct pollfd pfds[2];
+
+	pfds[0].fd = STDIN_FILENO;
+	pfds[0].events = POLLIN;
+
+	pfds[1].fd = clientfd;
+	pfds[1].events = POLLIN;
 
 	while (1)
 	{
-		readBytes = recv(clientfd, buffer, MAX_MESSAGE_SIZE, 0);
+		int num_events = poll(pfds, 2, -1);
 
-		if (readBytes < 0)
+		if (num_events < 0)
 		{
-			perror("recv");
+			perror("poll");
+			close(clientfd);
 			return EXIT_FAILURE;
 		}
 
-		else if (readBytes == 0)
+		else if (num_events == 1)
 		{
-			fprintf(stdout, "Connection closed by the client.\n");
-			break;
+			if (pfds[1].revents & POLLIN)
+			{
+				readBytes = recv(clientfd, buffer, MAX_MESSAGE_SIZE, 0);
+
+				if (readBytes < 0)
+				{
+					perror("recv");
+					return EXIT_FAILURE;
+				}
+
+				else if (readBytes == 0)
+				{
+					fprintf(stdout, "Connection closed by the peer.\n");
+					break;
+				}
+
+				fprintf(stdout, "Peer: %s\n", buffer);
+			}
+
+			else if (pfds[0].revents & POLLIN)
+			{
+				fgets(buffer, MAX_MESSAGE_SIZE, stdin);
+
+				buffer[strlen(buffer) - 1] = '\0';
+
+				writeBytes = send(clientfd, buffer, strlen(buffer), 0);
+
+				if (writeBytes < 0)
+				{
+					perror("send");
+					return EXIT_FAILURE;
+				}
+
+				else if (writeBytes == 0)
+				{
+					fprintf(stdout, "Connection closed by the peer.\n");
+					break;
+				}
+
+				memset(buffer, 0, MAX_MESSAGE_SIZE);
+			}
 		}
-
-		fprintf(stdout, "Client message: %s\n", buffer);
-
-		writeBytes = send(clientfd, buffer, strlen(buffer), 0);
-
-		if (writeBytes < 0)
-		{
-			perror("send");
-			return EXIT_FAILURE;
-		}
-
-		else if (writeBytes == 0)
-		{
-			fprintf(stdout, "Connection closed by the client.\n");
-			break;
-		}
-
-		memset(buffer, 0, MAX_MESSAGE_SIZE);
 	}
 
 	close(clientfd);
-	close(sockfd);
 
 	return EXIT_SUCCESS;
 }
