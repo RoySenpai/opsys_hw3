@@ -85,7 +85,7 @@ int client_chat_mode(char *ip, char *port) {
 			return EXIT_FAILURE;
 		}
 
-		else if (num_events == 1)
+		else
 		{
 			if (pfds[0].revents & POLLIN)
 			{
@@ -106,9 +106,11 @@ int client_chat_mode(char *ip, char *port) {
 					fprintf(stdout, "Connection closed by the peer.\n");
 					break;
 				}
+
+				memset(buffer, 0, MAX_MESSAGE_SIZE);
 			}
 
-			else if (pfds[1].revents & POLLIN)
+			if (pfds[1].revents & POLLIN)
 			{
 				readBytes = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
 
@@ -124,10 +126,9 @@ int client_chat_mode(char *ip, char *port) {
 					break;
 				}
 
-				fprintf(stdout, "Peer: %s\n", buffer);
+				fprintf(stdout, "\nPeer: %s\n", buffer);
 
 				memset(buffer, 0, MAX_MESSAGE_SIZE);
-
 			}
 		}
 	}
@@ -220,7 +221,7 @@ int server_chat_mode(char *port) {
 			return EXIT_FAILURE;
 		}
 
-		else if (num_events == 1)
+		else
 		{
 			if (pfds[1].revents & POLLIN)
 			{
@@ -238,10 +239,12 @@ int server_chat_mode(char *port) {
 					break;
 				}
 
-				fprintf(stdout, "Peer: %s\n", buffer);
+				fprintf(stdout, "\nPeer: %s\n", buffer);
+
+				memset(buffer, 0, MAX_MESSAGE_SIZE);
 			}
 
-			else if (pfds[0].revents & POLLIN)
+			if (pfds[0].revents & POLLIN)
 			{
 				fgets(buffer, MAX_MESSAGE_SIZE, stdin);
 
