@@ -1,6 +1,6 @@
 /*
  *  Operation Systems (OSs) Course Assignment 3
- *  Student Network Communication (STNC) program
+ *  Student Network Communication (STNC) Utilities
  *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -54,87 +54,12 @@ void print_usage(char *programName, uint8_t mode){
 	}
 }
 
-void print_client_usage(char *programName) {
-	fprintf(stdout, "Usage: %s -c <ip> <port> [-p <type> <param>]\n", programName);
-}
-
-void printServerUsage(char *programName) {
-	fprintf(stdout, "Usage: %s -s <port> [-p] [-q]\n", programName);
-}
-
 void print_license() {
 	fprintf(stdout, "Student Network Communication (STNC)  Copyright (C) 2023  Roy Simanovich and Linor Ronen\n"
 					"This program comes with ABSOLUTELY NO WARRANTY.\n"
 					"This is free software, and you are welcome to redistribute it\n"
 					"under certain conditions; see `LICENSE' for details.\n\n");
 
-}
-
-int generateRandomData(char *file_name, uint32_t size) {
-    FILE *fd = NULL;
-    uint8_t *buffer = NULL;
-    uint32_t remainingBytes = size;
-
-    if (remainingBytes == 0)
-	{
-		fprintf(stderr, "Invalid size.\n");
-		return EXIT_FAILURE;
-	}
-
-    if (isFileExists(file_name))
-    {
-        fprintf(stderr, "File already exists.\n");
-        return EXIT_FAILURE;
-    }
-
-    if (strcmp(file_name, "") == 0)
-    {
-        fprintf(stderr, "Invalid file name.\n");
-        return EXIT_FAILURE;
-    }
-
-    fd = fopen(file_name, "wb");
-
-	if (fd == NULL)
-	{
-		fprintf(stderr, "Invalid file descriptor.\n");
-		return EXIT_FAILURE;
-	}
-
-    buffer = (uint8_t *)calloc(CHUNK_SIZE, sizeof(uint8_t));
-
-    if (buffer == NULL)
-    {
-        fprintf(stderr, "Failed to allocate memory.\n");
-        fclose(fd);
-        return EXIT_FAILURE;
-    }
-
-	fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
-	fprintf(stdout, "Chunk size: %d bytes (%d KB)\n", CHUNK_SIZE, (CHUNK_SIZE / 1024));
-
-	while (remainingBytes > 0)
-	{
-		uint32_t bytesToWrite = ((remainingBytes > CHUNK_SIZE) ? CHUNK_SIZE:remainingBytes);
-
-		for (uint32_t i = 0; i < bytesToWrite; i++)
-			*(buffer + i) = rand() % 256;
-
-		if (fwrite(buffer, sizeof(char), bytesToWrite, fd) != bytesToWrite)
-		{
-			fprintf(stderr, "Failed to write to file.\n");
-			return EXIT_FAILURE;
-		}
-
-		remainingBytes -= bytesToWrite;
-	}
-
-	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
-
-    free(buffer);
-    fclose(fd);
-
-	return EXIT_SUCCESS;
 }
 
 uint8_t *generate_random_data(uint32_t size) {
@@ -149,6 +74,8 @@ uint8_t *generate_random_data(uint32_t size) {
 	if (buffer == NULL)
 		return NULL;
 
+	fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
+
 	while (remainingBytes > 0)
 	{
 		uint32_t bytesToWrite = ((remainingBytes > CHUNK_SIZE) ? CHUNK_SIZE:remainingBytes);
@@ -162,17 +89,6 @@ uint8_t *generate_random_data(uint32_t size) {
 	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
 
 	return buffer;
-}
-
-bool isFileExists(char *filename) {
-	FILE *fd = fopen(filename, "rb");
-
-	if (fd == NULL)
-		return 0;
-
-	fclose(fd);
-
-	return 1;
 }
 
 stnc_transfer_protocol stnc_get_transfer_protocol(char *transferType) {
@@ -246,7 +162,7 @@ int stnc_print_packet_data(stnc_packet *packet) {
 	return 0;
 }
 
-int printPacketPayload(stnc_packet *packet) {
+int stnc_print_packet_payload(stnc_packet *packet) {
 	if (packet == NULL)
 	{
 		fprintf(stderr, "Invalid packet.\n");

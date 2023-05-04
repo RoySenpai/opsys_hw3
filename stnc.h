@@ -47,10 +47,11 @@ int server_chat_mode(char *port);
  * @param port The port number of the server.
  * @param transferType The type of the transfer.
  * @param transferProtocol The protocol of the transfer.
+ * @param quietMode Indicates whether to print activity messages or not.
  * @return 0 on success, 1 on failure.
  * @note This function is used by the main function of the STNC program.
 */
-int client_performance_mode(char *ip, char *port, char *transferType, char *transferProtocol);
+int client_performance_mode(char *ip, char *port, char *transferType, char *transferProtocol, bool quietMode);
 
 /*
  * @brief Server performance mode of the STNC program.

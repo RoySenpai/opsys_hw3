@@ -1,6 +1,6 @@
 /*
  *  Operation Systems (OSs) Course Assignment 3
- *  Student Network Communication (STNC) program
+ *  Student Network Communication (STNC) Performance Mode
  *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -32,15 +32,17 @@
 #include <unistd.h>
 #include "stnc.h"
 
-int client_performance_mode(char *ip, char *port, char *transferProtocol, char *transferParam) {
-	char fileName[FILE_NAME_MAX_SIZE] = { 0 };
+int client_performance_mode(char *ip, char *port, char *transferProtocol, char *transferParam, bool quietMode) {
+	struct sockaddr_in serverAddress;
+
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+	uint8_t *data_to_send = NULL;
+
 	int chatSocket = INVALID_SOCKET;
 	uint16_t portNumber = atoi(port);
+
 	stnc_transfer_protocol protocol = stnc_get_transfer_protocol(transferProtocol);
 	stnc_transfer_param param = stnc_get_transfer_param(transferParam);
-
-	strcpy(fileName, ((protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE) ? transferParam:FILE_NAME));
 
 	if (portNumber < MIN_PORT_NUMBER)
 	{
@@ -63,18 +65,14 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		param = PARAM_FILE;
 
-	if (!isFileExists(fileName))
+	data_to_send = generate_random_data(FILE_SIZE);
+
+	if (data_to_send == NULL)
 	{
-		fprintf(stdout, "File \"%s\" not found. Generating random data...\n", fileName);
-		
-		if (generateRandomData(fileName, FILE_SIZE) == EXIT_FAILURE)
-		{
-			fprintf(stderr, "Failed to generate random data.\n");
-			return EXIT_FAILURE;
-		}
+		fprintf(stderr, "Failed to generate random data.\n");
+		return EXIT_FAILURE;
 	}
 
-	struct sockaddr_in serverAddress;
 	memset(&serverAddress, 0, sizeof(serverAddress));
 
 	serverAddress.sin_family = AF_INET;
@@ -100,25 +98,23 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	fprintf(stdout, "Connected to server %s:%d.\n", ip, portNumber);
 
-	fprintf(stdout, "Transfer protocol: %s\n"
-	 				"Transfer param: %s\n"
-					"File name: %s\n"
-					"File size: %d\n", 
-					transferProtocol, transferParam, fileName, FILE_SIZE);
-
 	stnc_prepare_packet(buffer, MSGT_INIT, protocol, param, ERRC_SUCCESS, FILE_SIZE, NULL);
 
-	fprintf(stdout, "Sending initilization packet (file size, protocol, param)...\n");
+	if (!quietMode)
+		fprintf(stdout, "Sending initilization packet (file size, protocol, param)...\n");
 
 	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
 	{
-		fprintf(stderr, "Failed to send initilization packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to send initilization packet.\n");
+			
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "Initilization packet sent.\n"
-					"Waiting for ACK packet...\n");
+	if (!quietMode)
+		fprintf(stdout, "Initilization packet sent.\n"
+						"Waiting for ACK packet...\n");
 
 	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
@@ -127,32 +123,40 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "ACK packet received.\n");
+	if (!quietMode)
+		fprintf(stdout, "ACK packet received.\n");
 
-	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(fileName) + 1), (uint8_t*)fileName);
+	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(transferParam) + 1), (uint8_t*)transferParam);
 
-	fprintf(stdout, "Sending data packet (file name)...\n");
+	if (!quietMode)
+		fprintf(stdout, "Sending data packet (file name)...\n");
 
 	stnc_print_packet_data((stnc_packet*)buffer);
 
 	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
 	{
-		fprintf(stderr, "Failed to send data packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to send data packet.\n");
+
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "Data packet sent.\n"
-					"Waiting for ACK packet...\n");
+	if (!quietMode)
+		fprintf(stdout, "Data packet sent.\n"
+						"Waiting for ACK packet...\n");
 
 	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
-		fprintf(stderr, "Failed to receive ACK packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to receive ACK packet.\n");
+
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "ACK packet received.\n");
+	if (!quietMode)
+		fprintf(stdout, "ACK packet received.\n");
 
 	// TODO START 
 	
@@ -161,7 +165,8 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 	// TODO END
 
 	
-	fprintf(stdout, "Waiting for ACK packet...\n");
+	if (!quietMode)
+		fprintf(stdout, "Waiting for ACK packet...\n");
 
 	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
@@ -170,47 +175,59 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "ACK packet received.\n"
-					"File transfer complete.\n");
+	if (!quietMode)
+		fprintf(stdout, "ACK packet received.\n"
+						"File transfer complete.\n");
 
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
-	fprintf(stdout, "Sending ACK packet...\n");
+	if (!quietMode)
+		fprintf(stdout, "Sending ACK packet...\n");
 
 	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
 	{
-		fprintf(stderr, "Failed to send ACK packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to send ACK packet.\n");
+
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "ACK packet sent.\n"
+	if (!quietMode)
+		fprintf(stdout, "ACK packet sent.\n"
 					"Waiting for statistics packet...\n");
 
 	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
 	{
-		fprintf(stderr, "Failed to receive statistics packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to receive statistics packet.\n");
+
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "Statistics packet received.\n");
+	if (!quietMode)
+		fprintf(stdout, "Statistics packet received.\n");
 
 	stnc_print_packet_payload((stnc_packet*)buffer);
 
 	stnc_prepare_packet(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
 
-	fprintf(stdout, "Sending end packet...\n");
+	if (!quietMode)
+		fprintf(stdout, "Sending end packet...\n");
 
 	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
 	{
-		fprintf(stderr, "Failed to send end packet.\n");
+		if (!quietMode)
+			fprintf(stderr, "Failed to send end packet.\n");
+
 		close(chatSocket);
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "End packet sent.\n"
-					"Closing connection...\n");
+	if (!quietMode)
+		fprintf(stdout, "End packet sent.\n"
+						"Closing connection...\n");
 
 	close(chatSocket);
 
@@ -419,7 +436,6 @@ int server_performance_mode(char *port, bool quietMode) {
 	fprintf(stdout, "Closing connection...\n");
 	close(chatSocket);
 	close(serverSocket);
-
 
 	return EXIT_SUCCESS;
 }
@@ -752,6 +768,325 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
 	}
 
 	close(fd);
+
+	return EXIT_SUCCESS;
+}
+
+int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode) {
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	struct sockaddr_in serverAddress, clientAddress;
+	socklen_t len = sizeof(clientAddress);
+
+	uint32_t bytesReceived = 0;
+
+	int serverSocket = INVALID_SOCKET;
+
+	if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		if (!quietMode)
+			perror("socket");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	memset(&serverAddress, 0, sizeof(serverAddress));
+	memset(&clientAddress, 0, sizeof(clientAddress));
+
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+	serverAddress.sin_port = htons(server_port + 1);
+
+	if (bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+	{
+		if (!quietMode)
+			perror("bind");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(serverSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (param == PARAM_TCP)
+	{
+		if (listen(serverSocket, 1) < 0)
+		{
+			if (!quietMode)
+				perror("listen");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &len);
+
+		if (clientSocket < 0)
+		{
+			if (!quietMode)
+				perror("accept");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		fprintf(stdout, "Client connected from %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+
+		close(serverSocket);
+
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recv");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(clientSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(clientSocket);
+	}
+
+	else
+	{
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recvfrom");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(serverSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(serverSocket);
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
+
+	return EXIT_SUCCESS;
+}
+
+int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode) {
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	struct sockaddr_in6 serverAddress, clientAddress;
+	socklen_t len = sizeof(clientAddress);
+
+	uint32_t bytesReceived = 0;
+
+	int serverSocket = INVALID_SOCKET;
+
+	if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		if (!quietMode)
+			perror("socket");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	memset(&serverAddress, 0, sizeof(serverAddress));
+	memset(&clientAddress, 0, sizeof(clientAddress));
+
+	serverAddress.sin6_family = AF_INET6;
+	serverAddress.sin6_port = htons(server_port + 1);
+	serverAddress.sin6_addr = in6addr_any;
+
+	if (bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+	{
+		if (!quietMode)
+			perror("bind");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(serverSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (param == PARAM_TCP)
+	{
+		if (listen(serverSocket, 1) < 0)
+		{
+			if (!quietMode)
+				perror("listen");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &len);
+
+		if (clientSocket < 0)
+		{
+			if (!quietMode)
+				perror("accept");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+		{
+			char clientIP[INET6_ADDRSTRLEN] = { 0 };
+
+			if (inet_ntop(AF_INET6, &clientAddress.sin6_addr, clientIP, sizeof(clientIP)) == NULL)
+			{
+				if (!quietMode)
+					perror("inet_ntop");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(serverSocket);
+				return EXIT_FAILURE;
+			}
+
+			fprintf(stdout, "Client connected from %s:%d.\n", clientIP, ntohs(clientAddress.sin6_port));
+		}
+
+		close(serverSocket);
+
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recv");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(clientSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(clientSocket);
+	}
+
+	else
+	{
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recvfrom");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(serverSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(serverSocket);
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
 
 	return EXIT_SUCCESS;
 }

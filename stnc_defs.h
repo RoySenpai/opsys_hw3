@@ -33,6 +33,13 @@
 #define INVALID_SOCKET -1
 
 /*
+ * @brief Indicates whether to print activity messages or not for the client performance mode.
+ * @note The value can be either true or false.
+ * @note The default value is false.
+*/
+#define CLIENT_QUIET_MODE false
+
+/*
  * @breif Defines the minimum port number that can be used by the STNC program.
  * @note The default value is 1024.
  * @note The maximum port number is 65535.
@@ -54,24 +61,10 @@
 #define CHUNK_SIZE 65536
 
 /*
- * @brief Defines the File name for the performance mode.
- * @note The default value is "stnc_file".
- * @deprecated This macro is deprecated, and will be removed in the next version.
-*/
-#define FILE_NAME "stnc_file"
-
-/*
  * @brief Defines the File size for the performance mode.
  * @note The default value is 100MB (104,857,600 bytes).
 */
 #define FILE_SIZE 104857600
-
-/*
- * @brief Defines the maximum size of a file name, in performance mode.
- * @note The default value is 256 characters.
- * @deprecated This macro is deprecated, and will be removed in the next version.
-*/
-#define FILE_NAME_MAX_SIZE 256
 
 /*
  * @brief Defines the maximum size of a message, in performance mode.

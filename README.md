@@ -19,6 +19,7 @@ In this assignment we implemented a tool called STNC (Stands for Student Network
 ## Requirements
 
 * Linux machine (Ubuntu 22.04 LTS preferable)
+* OpenSSL crypto library
 * GNU C Compiler
 * Make
 
@@ -27,6 +28,9 @@ In this assignment we implemented a tool called STNC (Stands for Student Network
 ```
 # Cloning the repo to local machine.
 git clone https://github.com/RoySenpai/opsys_hw3.git
+
+# Install OpenSSL crypto library
+sudo apt-get install libssl-dev
 
 # Building all the necessary files & the main programs.
 make all

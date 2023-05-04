@@ -1,6 +1,6 @@
 /*
  *  Operation Systems (OSs) Course Assignment 3
- *  Student Network Communication (STNC) program
+ *  Student Network Communication (STNC) Chat Mode
  *  Copyright (C) 2023  Roy Simanovich and Linor Ronen
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -126,7 +126,7 @@ int client_chat_mode(char *ip, char *port) {
 					break;
 				}
 
-				fprintf(stdout, "\nPeer: %s\n", buffer);
+				fprintf(stdout, "Peer: %s\n", buffer);
 
 				memset(buffer, 0, MAX_MESSAGE_SIZE);
 			}
@@ -239,7 +239,7 @@ int server_chat_mode(char *port) {
 					break;
 				}
 
-				fprintf(stdout, "\nPeer: %s\n", buffer);
+				fprintf(stdout, "Peer: %s\n", buffer);
 
 				memset(buffer, 0, MAX_MESSAGE_SIZE);
 			}

@@ -31,44 +31,11 @@
 void print_usage(char *programName, uint8_t mode);
 
 /*
- * @brief Prints the usage of the STNC program in client mode.
- * @param programName The name of the program.
- * @return void (no return value).
- * @note This function is used by the main function of the STNC program.
- * @deprecated This function is deprecated, use print_usage() instead.
- *              TODO: Remove this function in the next update.
-*/
-void print_client_usage(char *programName) __attribute__((deprecated("This function is deprecated, use print_usage() instead.")));
-
-/*
- * @brief Prints the usage of the STNC program in server mode.
- * @param programName The name of the program.
- * @return void (no return value).
- * @note This function is used by the main function of the STNC program.
- * @deprecated This function is deprecated, use print_usage() instead.
- *              TODO: Remove this function in the next update.
-*/
-void printServerUsage(char *programName) __attribute__((deprecated("This function is deprecated, use print_usage() instead.")));
-
-/*
  * @brief Prints the license of the STNC program.
  * @return void (no return value).
  * @note This function is used by the main function of the STNC program.
 */
 void print_license();
-
-/*
- * @brief Generates random data for the performace test, according to the given size.
- * @param fd The file descriptor of the file to write the data to.
- * @param size The size of the data buffer.
- * @return 0 on success, 1 on failure.
- * @note The data is generated using the rand() function.
- * @note The data is generated in blocks of 64KB.
- * @note If the size is not a multiple of 64KB, the last block will be smaller.
- * @deprecated This function is deprecated, use generate_random_data() instead.
- * 				TODO: Remove this function in the next update.
-*/
-int generateRandomData(char *file_name, uint32_t size) __attribute__((deprecated("This function is deprecated, use generate_random_data() instead.")));
 
 /*
  * @brief Generates random data for the performace test, according to the given size.
@@ -80,16 +47,6 @@ int generateRandomData(char *file_name, uint32_t size) __attribute__((deprecated
  * @note The caller is responsible for freeing the allocated memory.
 */
 uint8_t* generate_random_data(uint32_t size);
-
-/*
- * @brief Checks if a file exists.
- * @param filename The name of the file to check.
- * @return true if the file exists, false otherwise.
- * @note This function is used by the performance mode of the STNC program.
- * @deprecated This function is deprecated, no actual files are used in the performance mode.
- * 				TODO: Remove this function in the next update.
-*/
-bool isFileExists(char *filename) __attribute__((deprecated("This function is deprecated, no actual files are used in the performance mode.")));
 
 /*
  * @brief Prints the given packet data.

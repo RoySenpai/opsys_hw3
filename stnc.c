@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
 			}
 
 			fprintf(stdout, "Client performance mode\n");
-			return client_performance_mode(*(argv + 2), *(argv + 3), *(argv + 5), *(argv + 6));
+			return client_performance_mode(*(argv + 2), *(argv + 3), *(argv + 5), *(argv + 6), CLIENT_QUIET_MODE);
 		}
 
 		else
