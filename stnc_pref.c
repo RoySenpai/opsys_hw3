@@ -73,6 +73,19 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		return EXIT_FAILURE;
 	}
 
+	char *md5 = md5_calculate_checksum(data_to_send, FILE_SIZE);
+
+	if (md5 == NULL)
+	{
+		fprintf(stderr, "Failed to calculate MD5 checksum.\n");
+		free(data_to_send);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "MD5 checksum: %s\n", md5);
+
+	free(md5);
+
 	memset(&serverAddress, 0, sizeof(serverAddress));
 
 	serverAddress.sin_family = AF_INET;
@@ -81,18 +94,21 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 	if (inet_pton(AF_INET, ip, &serverAddress.sin_addr) <= 0)
 	{
 		perror("inet_pton");
+		free(data_to_send);
 		return EXIT_FAILURE;
 	}
 
 	if ((chatSocket = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
 	{
 		perror("socket");
+		free(data_to_send);
 		return EXIT_FAILURE;
 	}
 
 	if (connect(chatSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
 	{
 		perror("connect");
+		free(data_to_send);
 		return EXIT_FAILURE;
 	}
 

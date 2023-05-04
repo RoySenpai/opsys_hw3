@@ -81,7 +81,7 @@ uint8_t *generate_random_data(uint32_t size) {
 		uint32_t bytesToWrite = ((remainingBytes > CHUNK_SIZE) ? CHUNK_SIZE:remainingBytes);
 
 		for (uint32_t i = 0; i < bytesToWrite; i++)
-			*(buffer + i) = rand() % 256;
+			*(buffer + i) = ((uint32_t)rand() % 256);
 
 		remainingBytes -= bytesToWrite;
 	}
