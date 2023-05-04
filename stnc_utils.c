@@ -24,15 +24,37 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <openssl/evp.h>
 #include "stnc.h"
 
-void printUsage(char *programName) {
-	fprintf(stdout, "Student Network Communication (STNC) usage:\n");
-	fprintf(stdout, "Client mode: %s -c <ip> <port> [-p <type> <param>]\n", programName);
-	fprintf(stdout, "Server mode: %s -s <port> [-p] [-q]\n", programName);
+void print_usage(char *programName, uint8_t mode){
+	switch(mode)
+	{
+		case 0:
+		{
+			fprintf(stdout, "Student Network Communication (STNC) usage:\n");
+			fprintf(stdout, "Client mode: %s -c <ip> <port> [-p <type> <param>]\n", programName);
+			fprintf(stdout, "Server mode: %s -s <port> [-p] [-q]\n", programName);
+			break;
+		}
+
+		case 1:
+		{
+			fprintf(stdout, "Usage: %s -c <ip> <port> [-p <type> <param>]\n", programName);
+			break;
+		}
+
+		case 2:
+		{
+			fprintf(stdout, "Usage: %s -s <port> [-p] [-q]\n", programName);
+			break;
+		}
+
+		default: break;
+	}
 }
 
-void printClientUsage(char *programName) {
+void print_client_usage(char *programName) {
 	fprintf(stdout, "Usage: %s -c <ip> <port> [-p <type> <param>]\n", programName);
 }
 
@@ -40,11 +62,12 @@ void printServerUsage(char *programName) {
 	fprintf(stdout, "Usage: %s -s <port> [-p] [-q]\n", programName);
 }
 
-void printLicense() {
+void print_license() {
 	fprintf(stdout, "Student Network Communication (STNC)  Copyright (C) 2023  Roy Simanovich and Linor Ronen\n"
 					"This program comes with ABSOLUTELY NO WARRANTY.\n"
 					"This is free software, and you are welcome to redistribute it\n"
 					"under certain conditions; see `LICENSE' for details.\n\n");
+
 }
 
 int generateRandomData(char *file_name, uint32_t size) {
@@ -114,6 +137,33 @@ int generateRandomData(char *file_name, uint32_t size) {
 	return EXIT_SUCCESS;
 }
 
+uint8_t *generate_random_data(uint32_t size) {
+	uint8_t *buffer = NULL;
+    uint32_t remainingBytes = size;
+
+	if (remainingBytes == 0)
+		return NULL;
+
+	buffer = (uint8_t *)calloc(size, sizeof(uint8_t));
+
+	if (buffer == NULL)
+		return NULL;
+
+	while (remainingBytes > 0)
+	{
+		uint32_t bytesToWrite = ((remainingBytes > CHUNK_SIZE) ? CHUNK_SIZE:remainingBytes);
+
+		for (uint32_t i = 0; i < bytesToWrite; i++)
+			*(buffer + i) = rand() % 256;
+
+		remainingBytes -= bytesToWrite;
+	}
+
+	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
+
+	return buffer;
+}
+
 bool isFileExists(char *filename) {
 	FILE *fd = fopen(filename, "rb");
 
@@ -125,7 +175,7 @@ bool isFileExists(char *filename) {
 	return 1;
 }
 
-transfer_protocol getTransferProtocol(char *transferType) {
+stnc_transfer_protocol stnc_get_transfer_protocol(char *transferType) {
 	if (strcmp(transferType, "ipv4") == 0)
 		return PROTOCOL_IPV4;
 
@@ -144,7 +194,7 @@ transfer_protocol getTransferProtocol(char *transferType) {
 	return PROTOCOL_NONE;
 }
 
-transfer_param getTransferParam(char *transferParam) {
+stnc_transfer_param stnc_get_transfer_param(char *transferParam) {
 	if (strcmp(transferParam, "tcp") == 0)
 		return PARAM_TCP;
 
@@ -160,7 +210,7 @@ transfer_param getTransferParam(char *transferParam) {
 	return PARAM_NONE;
 }
 
-int printPacketData(stnc_packet *packet) {
+int stnc_print_packet_data(stnc_packet *packet) {
 	static const char *packetTypes[] = { "Initalization", "Acknowledgement", "Data transfer", "End communication" };
 	static const char *transferProtocols[] = { "None", "IPv4", "IPv6", "Unix domain socket", "Memory mapped file", "Pipe" };
 	static const char *transferParams[] = { "None", "TCP", "UDP", "Stream", "Datagram", "File" };
@@ -225,7 +275,7 @@ int printPacketPayload(stnc_packet *packet) {
 	return 0;
 }
 
-int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol, transfer_param param, error_code error, uint32_t size, uint8_t *data) {
+int stnc_prepare_packet(uint8_t *buffer, stnc_message_type type, stnc_transfer_protocol protocol, stnc_transfer_param param, stnc_error_code error, uint32_t size, uint8_t *data) {
 	if (buffer == NULL)
 	{
 		fprintf(stderr, "Invalid packet.\n");
@@ -252,7 +302,7 @@ int PreparePacket(uint8_t *buffer, message_type type, transfer_protocol protocol
 	return 0;
 }
 
-int sendTCPData(int socket, uint8_t *packet, bool quietMode) {
+int stnc_send_tcp_data(int socket, uint8_t *packet, bool quietMode) {
 	int bytesToSend = 0;
 
 	if (((stnc_packet *)packet)->type == MSGT_DATA)
@@ -285,7 +335,7 @@ int sendTCPData(int socket, uint8_t *packet, bool quietMode) {
 	return bytesSent;
 }
 
-int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
+int stnc_receive_tcp_data(int socket, uint8_t *packet, bool quietMode) {
 	ssize_t bytesReceived = recv(socket, packet, STNC_PROTO_MAX_SIZE, 0);
 
 	if (bytesReceived < 0)
@@ -323,13 +373,13 @@ int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
 	else if (!quietMode)
 		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
 
-	if (GetPacketError(packet) != ERRC_SUCCESS)
+	if (stnc_get_packet_error(packet) != ERRC_SUCCESS)
 	{
 		if (!quietMode)
 		{
 			uint8_t *error = packet + sizeof(stnc_packet);
 			fprintf(stderr, "Received packet contains an error:\n");
-			fprintf(stderr, "Error code: %u\n", GetPacketError(packet));
+			fprintf(stderr, "Error code: %u\n", stnc_get_packet_error(packet));
 			fprintf(stderr, "Error message: %s\n", error);
 		}
 
@@ -339,37 +389,74 @@ int receiveTCPData(int socket, uint8_t *packet, bool quietMode) {
 	return bytesReceived;
 }
 
-message_type GetPacketType(uint8_t *buffer) {
+stnc_message_type stnc_get_packet_type(uint8_t *buffer) {
 	if (buffer == NULL)
 		return MSGT_INVALID;
 
 	return ((stnc_packet *)buffer)->type;
 }
 
-transfer_protocol GetPacketProtocol(uint8_t *buffer) {
+stnc_transfer_protocol stnc_get_packet_protocol(uint8_t *buffer) {
 	if (buffer == NULL)
 		return PROTOCOL_NONE;
 
 	return ((stnc_packet *)buffer)->protocol;
 }
 
-transfer_param GetPacketParam(uint8_t *buffer) {
+stnc_transfer_param stnc_get_packet_param(uint8_t *buffer) {
 	if (buffer == NULL)
 		return PARAM_NONE;
 
 	return ((stnc_packet *)buffer)->param;
 }
 
-error_code GetPacketError(uint8_t *buffer) {
+stnc_error_code stnc_get_packet_error(uint8_t *buffer) {
 	if (buffer == NULL)
 		return ERRC_INVALID;
 
 	return ((stnc_packet *)buffer)->error;
 }
 
-uint32_t GetPacketSize(uint8_t *buffer) {
+uint32_t stnc_get_packet_size(uint8_t *buffer) {
 	if (buffer == NULL)
 		return 0;
 
 	return ((stnc_packet *)buffer)->size;
+}
+
+char* md5_calculate_checksum(uint8_t *data, uint32_t size) {
+    EVP_MD_CTX *mdctx;
+
+    uint8_t *md5_digest = NULL;
+	char *checksumString = NULL;
+
+    uint32_t md5_digest_len = EVP_MD_size(EVP_md5());
+    
+    // MD5_Init
+    mdctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
+
+    // MD5_Update
+    EVP_DigestUpdate(mdctx, data, size);
+
+    // MD5_Final
+    md5_digest = (uint8_t *)OPENSSL_malloc(md5_digest_len);
+    EVP_DigestFinal_ex(mdctx, md5_digest, &md5_digest_len);
+    EVP_MD_CTX_free(mdctx);
+
+	checksumString = (char *)calloc((md5_digest_len * 2 + 1), sizeof(char));
+
+	if (checksumString == NULL)
+	{
+		fprintf(stderr, "Failed to allocate memory for checksum string.\n");
+		OPENSSL_free(md5_digest);
+		return NULL;
+	}
+
+	for (uint32_t i = 0; i < md5_digest_len; i++)
+		sprintf(checksumString + (i * 2), "%02x", md5_digest[i]);
+
+	OPENSSL_free(md5_digest);
+
+	return checksumString;
 }

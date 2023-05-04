@@ -28,11 +28,11 @@
 #include "stnc.h"
 
 int main(int argc, char **argv) {
-	printLicense();
+	print_license();
 
 	if (argc < 2)
 	{
-		printUsage(*argv);
+		print_usage(*argv, 0);
 		return EXIT_FAILURE;
 	}
 
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
 	{
 		if (argc < 4 || argc > 7)
 		{
-			printClientUsage(*argv);
+			print_usage(*argv, 1);
 			return EXIT_FAILURE;
 		}
 
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 		{
 			if (argc != 7)
 			{
-				printClientUsage(*argv);
+				print_usage(*argv, 1);
 				return EXIT_FAILURE;
 			}
 
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
 
 		else
 		{
-			printClientUsage(*argv);
+			print_usage(*argv, 1);
 			return EXIT_FAILURE;
 		}
 	}
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 	{
 		if (argc < 3 || argc > 5)
 		{
-			printServerUsage(*argv);
+			print_usage(*argv, 2);
 			return EXIT_FAILURE;
 		}
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 
 			if (argc != 4 && argc != 5)
 			{
-				printServerUsage(*argv);
+				print_usage(*argv, 2);
 				return EXIT_FAILURE;
 			}
 
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 
 				else
 				{
-					printServerUsage(*argv);
+					print_usage(*argv, 2);
 					return EXIT_FAILURE;
 				}
 			}
@@ -111,14 +111,14 @@ int main(int argc, char **argv) {
 
 		else
 		{
-			printServerUsage(*argv);
+			print_usage(*argv, 2);
 			return EXIT_FAILURE;
 		}
 	}
 
 	else
 	{
-		printUsage(*argv);
+		print_usage(*argv, 0);
 		return EXIT_FAILURE;
 	}
 

@@ -14,6 +14,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -std=c11 -g
 RM = rm -f
+LIBS = -lcrypto
 
 # Phony targets - targets that are not files but commands to be executed by make.
 .PHONY: all default clean
@@ -29,16 +30,16 @@ default: all
 # Programs #
 ############
 stnc: stnc.o chat_mode.o perform_mode.o stnc_utils.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 ################
 # Object files #
 ################
-%.o: %.c stnc.h
+%.o: %.c stnc.h stnc_utils.h stnc_defs.h
 	$(CC) $(CFLAGS) -c $^
 	
 #################
 # Cleanup files #
 #################
 clean:
-	$(RM) *.gch *.o *.a *.so *.dll *.dylib stnc stnc_file
+	$(RM) *.gch *.o *.a *.so *.dll *.dylib stnc
