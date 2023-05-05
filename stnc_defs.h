@@ -60,6 +60,13 @@
 #define CHUNK_SIZE 65536
 
 /*
+ * @brief Defines the chunk size of the generated file, in performance mode, for the UDP protocol.
+ * @note The default value is 1024 bytes.
+ * @note UDP is a connectionless protocol, so the chunk size must be smaller than the MTU (Maximum Transmission Unit).
+*/
+#define CHUNK_SIZE_UDP 1024
+
+/*
  * @brief Defines the File size for the performance mode.
  * @note The default value is 100MB (104,857,600 bytes).
 */
@@ -70,6 +77,14 @@
  * @note The default value is 1024 bytes.
 */
 #define STNC_PROTO_MAX_SIZE 1024
+
+/*
+ * @brief Defines the timeout for the poll function, in performance mode.
+ * @note The default value is 1000 milliseconds (1 second).
+ * @note -1 means infinite timeout, 0 means no timeout.
+ * 			Those values shouldn't be used except for debugging purposes only!
+*/
+#define STNC_POLL_TIMEOUT 1000
 
 /*
  * @brief Sets the name of the UNIX socket, for the performance mode.
