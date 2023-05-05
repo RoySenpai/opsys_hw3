@@ -53,7 +53,6 @@
 */
 #define MAX_MESSAGE_SIZE 1024
 
-
 /*
  * @brief Defines the chunk size of the generated file, in performance mode.
  * @note The default value is 65536 bytes.
@@ -72,6 +71,12 @@
 */
 #define STNC_PROTO_MAX_SIZE 1024
 
+/*
+ * @brief Sets the name of the UNIX socket, for the performance mode.
+ * @note The default value is "stnc_unix_socket".
+ * @note The name must be shorter than 108 characters.
+*/
+#define STNC_UNIX_NAME "stnc_unix_socket"
 
 /****************************/
 /* Enumerations declaration */
@@ -266,12 +271,11 @@ typedef enum __attribute__((__packed__)) _stnc_error_code {
 	ERRC_PIPE,
 
 	/*
-	 * @brief Thread - Error in thread.
-	 * @note This indicates that an error occurred in one of the pthread functions.
+	 * @brief Alloc - Error in memory allocation.
+	 * @note This indicates that an error occurred in pne of the memory allocation functions (malloc, calloc, realloc).
 	*/
-	ERRC_THREAD
+	ERRC_ALLOC
 } stnc_error_code;
-
 
 /*
  * @brief Defines the message structure for the performace test.

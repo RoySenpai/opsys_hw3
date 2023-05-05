@@ -256,6 +256,8 @@ int server_performance_mode(char *port, bool quietMode) {
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	char fileName[STNC_PROTO_MAX_SIZE] = { 0 };
 
+	uint8_t *data_to_receive = NULL;
+
 	stnc_packet *packetData = (stnc_packet *)buffer;
 
 	socklen_t clientAddressLength = sizeof(clientAddress);
@@ -334,6 +336,24 @@ int server_performance_mode(char *port, bool quietMode) {
 						"Protocol: %u\n"
 						"Param: %u\n"
 						"File size: %u\n", protocol, param, fileSize);
+
+		fprintf(stdout, "Allocating %u bytes (%u KB) of memory...\n", fileSize, (fileSize / 1024));
+	}
+
+	data_to_receive = (uint8_t *)malloc(fileSize * sizeof(uint8_t));
+
+	if (data_to_receive == NULL)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Failed to allocate memory.\n");
+
+		char* err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_ALLOC, (strlen(err) + 1), (uint8_t *)err);
+		stnc_send_tcp_data(chatSocket, buffer, quietMode);
+		
+		close(chatSocket);
+		return EXIT_FAILURE;
 	}
 
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
@@ -447,11 +467,22 @@ int server_performance_mode(char *port, bool quietMode) {
 	{
 		fprintf(stdout, "End packet received.\n");
 		stnc_print_packet_data(packetData);
+		fprintf(stdout, "Closing connection...\n");
 	}
 
-	fprintf(stdout, "Closing connection...\n");
 	close(chatSocket);
 	close(serverSocket);
+
+	if (!quietMode)
+		fprintf(stdout, "Memory cleanup...\n");
+
+	free(data_to_receive);
+
+	if (!quietMode)
+		fprintf(stdout, "Memory cleanup complete.\n"
+						"Connection closed.\n"
+						"Exiting...\n");
+
 
 	return EXIT_SUCCESS;
 }
@@ -700,7 +731,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 }
 
 int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode) {
-	uint8_t *data = NULL;
+	uint8_t *data = MAP_FAILED;
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 
 	int fd = INVALID_SOCKET;
@@ -718,7 +749,19 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
 		return EXIT_FAILURE;
 	}
 
-	data = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if ((data = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
+	{
+		if (!quietMode)
+			perror("mmap");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(fd);
+		return EXIT_FAILURE;
+	}
 
 	uint32_t *sentSize = (uint32_t *)data;
 	data += sizeof(uint32_t);
@@ -729,16 +772,25 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
 	{
 		uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
-		if (!quietMode)
-			fprintf(stdout, "Sending data packet (%u/%u)...\n", bytesSent, filesize);
-
 		memcpy(data + bytesSent, dataToSend + bytesSent, bytesToSend);
 
 		bytesSent += bytesToSend;
 		*sentSize = bytesSent;
 	}
 
-	munmap(data, sizeof(uint32_t) + filesize);
+	if (munmap(data, sizeof(uint32_t) + filesize) == -1)
+	{
+		if (!quietMode)
+			perror("munmap");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(fd);
+		return EXIT_FAILURE;
+	}
 
 	close(fd);
 
@@ -774,9 +826,6 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
 	while (bytesSent < filesize)
 	{
 		uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
-
-		if (!quietMode)
-			fprintf(stdout, "Sending data packet (%u/%u)...\n", bytesSent, filesize);
 
 		write(fd, dataToSend + bytesSent, bytesToSend);
 
@@ -1103,6 +1152,288 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
+
+	return EXIT_SUCCESS;
+}
+
+int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode) {
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	struct sockaddr_un serverAddress, clientAddress = {
+        .sun_family = AF_UNIX,
+    };
+
+	uint32_t bytesReceived = 0;
+
+	socklen_t clientAddressLength = sizeof(clientAddress);
+
+	int serverSocket = INVALID_SOCKET;
+
+	int len = sizeof(struct sockaddr_un) + strlen(server_uds_path);
+
+	strcpy(serverAddress.sun_path, server_uds_path);
+	unlink(server_uds_path);
+
+	if ((serverSocket = socket(AF_UNIX, (param == PARAM_STREAM ? SOCK_STREAM : SOCK_DGRAM), 0)) < 0)
+	{
+		if (!quietMode)
+			perror("socket");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	if (bind(serverSocket, (struct sockaddr *)&serverAddress, len) < 0)
+	{
+		if (!quietMode)
+			perror("bind");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(serverSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (param == PARAM_STREAM)
+	{
+		if (listen(serverSocket, 1) < 0)
+		{
+			if (!quietMode)
+				perror("listen");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		int clientSocket = INVALID_SOCKET;
+
+		if ((clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)
+		{
+			if (!quietMode)
+				perror("accept");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+			fprintf(stdout, "Client connected from \"%s\".\n", clientAddress.sun_path);
+
+		close(serverSocket);
+
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recv");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(clientSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(clientSocket);
+	}
+
+	else
+	{
+		while (bytesReceived < filesize)
+		{
+			uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
+
+			int bytes = 0;
+
+			if (!quietMode)
+				fprintf(stdout, "Receiving data packet (%u/%u)...\n", bytesReceived, filesize);
+
+			bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &clientAddressLength);
+
+			if (bytes == -1)
+			{
+				if (!quietMode)
+					perror("recvfrom");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(serverSocket);
+				return EXIT_FAILURE;
+			}
+
+			bytesReceived += (uint32_t)bytes;
+		}
+
+		close(serverSocket);
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
+
+	return EXIT_SUCCESS;
+}
+
+int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode) {
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+	uint8_t *dataToReceive = MAP_FAILED;
+
+	int fd = INVALID_SOCKET;
+
+	if ((fd = open(file_name, O_RDONLY)) == -1)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Failed to open file \"%s\"\n", file_name);
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	if ((dataToReceive = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
+	{
+		if (!quietMode)
+			perror("mmap");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(fd);
+		return EXIT_FAILURE;
+	}
+
+	dataToReceive += sizeof(uint32_t);
+
+	uint32_t bytesReceived = 0;
+
+	while (bytesReceived < filesize)
+	{
+		uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+
+		memcpy(data + bytesReceived, dataToReceive, bytesToReceived);
+
+		bytesReceived += bytesToReceived;
+	}
+
+	if (munmap(dataToReceive, sizeof(uint32_t) + filesize) == -1)
+	{
+		if (!quietMode)
+			perror("munmap");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		close(fd);
+		return EXIT_FAILURE;
+	}
+
+	close(fd);
+
+	if (!quietMode)
+		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
+
+	return EXIT_SUCCESS;
+}
+
+int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode) {
+	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	int fd = INVALID_SOCKET;
+
+	if (mkfifo(file_name, 0666) == -1)
+	{
+		if (!quietMode)
+			perror("mkfifo");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	if ((fd = open(file_name, O_RDONLY)) == -1)
+	{
+		if (!quietMode)
+			perror("open");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return EXIT_FAILURE;
+	}
+
+	uint32_t bytesReceived = 0;
+
+	while (bytesReceived < filesize)
+	{
+		uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+
+		if (read(fd, data + bytesReceived, bytesToReceived) == -1)
+		{
+			if (!quietMode)
+				perror("write");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(fd);
+			return EXIT_FAILURE;
+		}
+
+		bytesReceived += bytesToReceived;
+	}
+
+	close(fd);
+
+	if (!quietMode)
+		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
 
 	return EXIT_SUCCESS;
 }

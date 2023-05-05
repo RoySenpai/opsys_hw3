@@ -64,9 +64,8 @@ void print_license() {
 
 uint8_t *generate_random_data(uint32_t size) {
 	uint8_t *buffer = NULL;
-    uint32_t remainingBytes = size;
 
-	if (remainingBytes == 0)
+	if (size == 0)
 		return NULL;
 
 	buffer = (uint8_t *)calloc(size, sizeof(uint8_t));
@@ -74,17 +73,13 @@ uint8_t *generate_random_data(uint32_t size) {
 	if (buffer == NULL)
 		return NULL;
 
+	// Randomize the seed of the random number generator
+	srand(time(NULL));
+
 	fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
 
-	while (remainingBytes > 0)
-	{
-		uint32_t bytesToWrite = ((remainingBytes > CHUNK_SIZE) ? CHUNK_SIZE:remainingBytes);
-
-		for (uint32_t i = 0; i < bytesToWrite; i++)
-			*(buffer + i) = ((uint32_t)rand() % 256);
-
-		remainingBytes -= bytesToWrite;
-	}
+	for (uint32_t i = 0; i < size; i++)
+		*(buffer + i) = ((uint32_t)rand() % 256);
 
 	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
 
@@ -128,9 +123,9 @@ stnc_transfer_param stnc_get_transfer_param(char *transferParam) {
 
 int stnc_print_packet_data(stnc_packet *packet) {
 	static const char *packetTypes[] = { "Initalization", "Acknowledgement", "Data transfer", "End communication" };
-	static const char *transferProtocols[] = { "None", "IPv4", "IPv6", "Unix domain socket", "Memory mapped file", "Pipe" };
-	static const char *transferParams[] = { "None", "TCP", "UDP", "Stream", "Datagram", "File" };
-	static const char *errorCodes[] = { "Success", "Socket error", "Send error", "Receive error", "Memory Mapping error", "Piping error", "Thread error" };
+	static const char *transferProtocols[] = { "None", "IPv4", "IPv6", "Unix Domain Socket (UDS)", "Memory Mapped File (MMAP)", "Named Pipe (FIFO)" };
+	static const char *transferParams[] = { "None", "Transmission Control Protocol (TCP)", "User Datagram Protocol (UDP)", "Stream", "Datagram", "File" };
+	static const char *errorCodes[] = { "Success (No error)", "Socket error", "Send error", "Receive error", "Memory Mapping error", "Piping error", "Allocation error" };
 
 	if (packet == NULL)
 	{
@@ -139,11 +134,17 @@ int stnc_print_packet_data(stnc_packet *packet) {
 	}
 
 	fprintf(stdout, "----------------------------------------\n");
-	fprintf(stdout, "Packet type: %s\n", packetTypes[packet->type]);
-	fprintf(stdout, "Transfer protocol: %s\n", transferProtocols[packet->protocol]);
-	fprintf(stdout, "Transfer param: %s\n", transferParams[packet->param]);
-	fprintf(stdout, "Error code: %s\n", errorCodes[packet->error]);
-	fprintf(stdout, "Size: %u bytes\n", packet->size);
+	fprintf(stdout, "Packet type: %s\n"
+					"Transfer protocol: %s\n"
+					"Transfer param: %s\n"
+					"Error code: %s\n"
+					"Size: %u bytes\n",
+					packetTypes[packet->type], 
+					transferProtocols[packet->protocol],
+					transferParams[packet->param],
+					errorCodes[packet->error],
+					packet->size
+			);
 	
 	if (packet->type == MSGT_DATA && packet->size > 0)
 	{
@@ -265,7 +266,7 @@ int stnc_receive_tcp_data(int socket, uint8_t *packet, bool quietMode) {
 	else if (bytesReceived == 0)
 	{
 		if (!quietMode)
-			fprintf(stderr, "Connection closed by the remote host.\n");
+			fprintf(stderr, "Connection closed by the peer.\n");
 
 		return -1;
 	}
@@ -277,15 +278,7 @@ int stnc_receive_tcp_data(int socket, uint8_t *packet, bool quietMode) {
 
 		return -1;
 	}
-
-	else if (bytesReceived > STNC_PROTO_MAX_SIZE)
-	{
-		if (!quietMode)
-			fprintf(stderr, "Received packet is too large.\n");
-		
-		return -1;
-	}
-
+	
 	else if (!quietMode)
 		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
 

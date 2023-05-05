@@ -93,12 +93,12 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param data The data to transfer.
  * @param chatsocket The socket to use for communication.
  * @param filesize The size of the file to transfer.
- * @param server_ip The IP address of the server.
+ * @param server_uds_path The path of the server (Unix Domain Socket).
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
  * @return 0 on success, 1 on failure.
 */
-int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, stnc_transfer_param param, bool quietMode);
+int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - Memory Mapping Sharing.
@@ -151,12 +151,12 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
  * @param chatsocket The socket to use for communication.
  * @param data The data to transfer.
  * @param filesize The size of the file to transfer.
- * @param server_port The port of the server.
+ * @param server_uds_path The path of the server (Unix Domain Socket).
  * @param param The transfer parameter (Stream or Datagram).
  * @param quietMode Indicates whether to print activity messages or not.
  * @return 0 on success, 1 on failure.
 */
-int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
+int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - Memory Mapping Sharing.
