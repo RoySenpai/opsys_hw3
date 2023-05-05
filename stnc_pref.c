@@ -988,7 +988,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 	int serverSocket = INVALID_SOCKET, reuse = 1;
 
-	if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	if ((serverSocket = socket(AF_INET, (param == PARAM_TCP ? SOCK_STREAM:SOCK_DGRAM), 0)) < 0)
 	{
 		if (!quietMode)
 			perror("socket");
@@ -1154,7 +1154,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 			else if (fds[1].revents & POLLIN)
 			{
-				if (!quietMode && (bytesReceived % (CHUNK_SIZE * 8) == 0))
+				if (!quietMode && (bytesReceived % (CHUNK_SIZE * 16) == 0))
 					fprintf(stdout, "Receiving data packet (%u KB/%u KB)...\n", bytesReceived / 1024, filesize / 1024);
 
 				uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
@@ -1286,7 +1286,10 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
+	{
+		fprintf(stdout, "Received %u bytes, expected %u bytes.\n", bytesReceived, filesize);
+		fprintf(stdout, "Total data received: %u KB (%0.2f%%).\n", (bytesReceived / 1024), (((float)bytesReceived / (float)filesize) * 100));
+	}
 
 	return bytesReceived;
 }

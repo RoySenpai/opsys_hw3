@@ -63,6 +63,7 @@
  * @brief Defines the chunk size of the generated file, in performance mode, for the UDP protocol.
  * @note The default value is 1024 bytes.
  * @note UDP is a connectionless protocol, so the chunk size must be smaller than the MTU (Maximum Transmission Unit).
+ * @note The MTU is 1500 bytes for Ethernet, and 576 bytes for IPv4.
 */
 #define CHUNK_SIZE_UDP 1024
 
