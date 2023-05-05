@@ -247,6 +247,16 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	close(chatSocket);
 
+	if (!quietMode)
+		fprintf(stdout, "Memory cleanup...\n");
+
+	free(data_to_send);
+
+	if (!quietMode)
+		fprintf(stdout, "Memory cleanup complete.\n"
+						"Connection closed.\n"
+						"Exiting...\n");
+
 	return EXIT_SUCCESS;
 }
 
