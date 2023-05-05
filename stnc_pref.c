@@ -174,7 +174,7 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 		fprintf(stdout, "ACK packet received.\n"
 						"Starting file transfer...\n");
 
-	int ret = perf_client_ipv4(data_to_send, chatSocket, FILE_SIZE, ip, portNumber, param, quietMode);
+	int ret = perf_client_ipv4(data_to_send, chatSocket, FILE_SIZE, ip, (portNumber + 1), param, quietMode);
 
 	if (ret <= 0)
 	{
@@ -397,7 +397,7 @@ int server_performance_mode(char *port, bool quietMode) {
 	// TODO START
 
 	// Add file transfer code here
-	actual_received = perf_server_ipv4(chatSocket, data_to_receive, fileSize, portNumber, param, quietMode);
+	actual_received = perf_server_ipv4(chatSocket, data_to_receive, fileSize, (portNumber + 1), param, quietMode);
 
 	if (actual_received == -1)
 	{
@@ -502,14 +502,27 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	int serverSocket = INVALID_SOCKET;
 
+	socklen_t len = sizeof(serverAddress);
+
 	uint32_t bytesSent = 0;
 
 	memset(&serverAddress, 0, sizeof(serverAddress));
 
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_port = htons(server_port + 1);
+	serverAddress.sin_port = htons(server_port);
 
-	inet_pton(AF_INET, server_ip, &serverAddress.sin_addr);
+	if (inet_pton(AF_INET, server_ip, &serverAddress.sin_addr) <= 0)
+	{
+		if (!quietMode)
+			perror("inet_pton");
+
+		char *err = strerror(errno);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+		return -1;
+	} 
 
 	if ((serverSocket = socket(AF_INET, (param == PARAM_TCP) ? SOCK_STREAM : SOCK_DGRAM, 0)) < 0)
 	{
@@ -629,14 +642,29 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 					return -1;
 				}
 
+				else if (bytes == 0)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Connection closed by server.\n");
+
+					char *err = strerror(errno);
+
+					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+					stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+					close(serverSocket);
+
+					return -1;
+				}
+
 				bytesSent += bytes;
 			}
 
 			else
 			{
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesSent));
-
-				int bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+				
+				int bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, len);
 
 				if (bytes == -1)
 				{
@@ -646,6 +674,21 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 					char *err = strerror(errno);
 
 					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+					close(serverSocket);
+
+					return -1;
+				}
+
+				else if (bytes == 0)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Connection closed by server.\n");
+
+					char *err = strerror(errno);
+
+					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -677,7 +720,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 	memset(&serverAddress, 0, sizeof(serverAddress));
 
 	serverAddress.sin6_family = AF_INET6;
-	serverAddress.sin6_port = htons(server_port + 1);
+	serverAddress.sin6_port = htons(server_port);
 
 	inet_pton(AF_INET6, server_ip, &serverAddress.sin6_addr);
 
@@ -976,7 +1019,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 	serverAddress.sin_family = AF_INET;
 	serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-	serverAddress.sin_port = htons(server_port + 1);
+	serverAddress.sin_port = htons(server_port);
 
 	if (bind(serverSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
 	{
@@ -991,6 +1034,9 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		close(serverSocket);
 		return -1;
 	}
+
+	if (!quietMode)
+		fprintf(stdout, "Binding completed.\n");
 
 	if (param == PARAM_TCP)
 	{
@@ -1009,7 +1055,11 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		}
 
 		if (!quietMode)
-			fprintf(stdout, "Sending ACK to client to connect...\n");
+		{
+			fprintf(stdout, "Listening on port %u...\n"
+							"Sending ACK to client to connect...\n",
+							server_port);
+		}
 
 		stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_IPV4, param, ERRC_SUCCESS, 0, NULL);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
@@ -1113,7 +1163,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 				bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
 
-				if (bytes == -1)
+				if (bytes <= 0)
 				{
 					if (!quietMode)
 						perror("recv");
@@ -1151,11 +1201,11 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		if (!quietMode)
-			fprintf(stdout, "ACK sent, waiting for client to start sending data...\n");
+			fprintf(stdout, "ACK sent, waiting for client to start sending data on port %u...\n", server_port);
 
 		while (bytesReceived < filesize)
 		{
-			int ret = poll(fds, 2, STNC_POLL_TIMEOUT * 5);
+			int ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
 			if (ret < 0)
 			{
@@ -1189,43 +1239,46 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				return -1;
 			}
 
-			if (fds[0].revents & POLLIN)
+			else if (ret > 0) 
 			{
-				if (!quietMode)
-					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
-				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-				stnc_print_packet_data((stnc_packet *)buffer);
-
-				break;
-			}
-
-			else if (fds[1].revents & POLLIN)
-			{
-				if (!quietMode && (bytesReceived % (CHUNK_SIZE * 8) == 0))
-					fprintf(stdout, "Receiving data packet (%u KB/%u KB)...\n", bytesReceived / 1024, filesize / 1024);
-
-				uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesReceived));
-
-				int bytes = 0;
-
-				bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
-
-				if (bytes == -1)
+				if (fds[0].revents & POLLIN)
 				{
 					if (!quietMode)
-						perror("recvfrom");
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
 
-					char *err = strerror(errno);
+					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+					stnc_print_packet_data((stnc_packet *)buffer);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
-					stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-					close(serverSocket);
-					return -1;
+					break;
 				}
 
-				bytesReceived += (uint32_t)bytes;
+				if (fds[1].revents & POLLIN)
+				{
+					if (!quietMode && (bytesReceived % (CHUNK_SIZE * 8) == 0))
+						fprintf(stdout, "Receiving data packet (%u KB/%u KB)...\n", bytesReceived / 1024, filesize / 1024);
+
+					uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesReceived));
+
+					int bytes = 0;
+
+					bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
+
+					if (bytes <= 0)
+					{
+						if (!quietMode)
+							perror("recvfrom");
+
+						char *err = strerror(errno);
+
+						stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_RECV, (strlen(err) + 1), (uint8_t *) err);
+						stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+						close(serverSocket);
+						return -1;
+					}
+
+					bytesReceived += (uint32_t)bytes;
+				}
 			}
 		}
 
