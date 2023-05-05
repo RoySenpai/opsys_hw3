@@ -467,35 +467,11 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	free(md5Hash);
 
-	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
-
-	if (!quietMode)
-		fprintf(stdout, "Sending ACK packet...\n");
-
-	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
-	{
-		fprintf(stderr, "Failed to send ACK packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "ACK packet sent.\n"
-						"Waiting for ACK packet...\n");
-
-	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
-	{
-		fprintf(stderr, "Failed to receive ACK packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "ACK packet received.\n");
-
 	// Calculate transfer time here and whatever...
 
-	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, 0, NULL);
+	char statics[] = "Future statistics here.";
+
+	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(statics) + 1), (uint8_t *)statics);
 
 	if (!quietMode)
 		fprintf(stdout, "Sending statistics packet...\n");
@@ -661,38 +637,20 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 
 		if (fds[1].revents & POLLOUT)
 		{
-			if (!quietMode && (bytesSent % (CHUNK_SIZE * 16) == 0))
-				fprintf(stdout, "Sending data packet (%u KB/%u KB)...\n", bytesSent / 1024, filesize / 1024);
-
 			if (param == PARAM_TCP)
 			{
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 				int bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
 
-				if (bytes == -1)
+				if (bytes <= 0)
 				{
 					if (!quietMode)
-						fprintf(stderr, "Failed to send data packet.\n");
+						perror("send");
 
 					char *err = strerror(errno);
 
 					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
-					stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-					close(serverSocket);
-
-					return -1;
-				}
-
-				else if (bytes == 0)
-				{
-					if (!quietMode)
-						fprintf(stderr, "Connection closed by server.\n");
-
-					char *err = strerror(errno);
-
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -709,7 +667,7 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 				
 				int bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, len);
 
-				if (bytes == -1)
+				if (bytes <= 0)
 				{
 					if (!quietMode)
 						perror("sendto");
@@ -717,21 +675,6 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 					char *err = strerror(errno);
 
 					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
-					stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-					close(serverSocket);
-
-					return -1;
-				}
-
-				else if (bytes == 0)
-				{
-					if (!quietMode)
-						fprintf(stderr, "Connection closed by server.\n");
-
-					char *err = strerror(errno);
-
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -872,38 +815,20 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 
 		if (fds[1].revents & POLLOUT)
 		{
-			if (!quietMode && (bytesSent % (CHUNK_SIZE * 16) == 0))
-				fprintf(stdout, "Sending data packet (%u KB/%u KB)...\n", bytesSent / 1024, filesize / 1024);
-
 			if (param == PARAM_TCP)
 			{
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 				int bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
 
-				if (bytes == -1)
+				if (bytes <= 0)
 				{
 					if (!quietMode)
-						fprintf(stderr, "Failed to send data packet.\n");
+						perror("send");
 
 					char *err = strerror(errno);
 
 					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
-					stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-					close(serverSocket);
-
-					return -1;
-				}
-
-				else if (bytes == 0)
-				{
-					if (!quietMode)
-						fprintf(stderr, "Connection closed by server.\n");
-
-					char *err = strerror(errno);
-
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -920,7 +845,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 				
 				int bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
 
-				if (bytes == -1)
+				if (bytes <= 0)
 				{
 					if (!quietMode)
 						perror("sendto");
@@ -928,21 +853,6 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 					char *err = strerror(errno);
 
 					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
-					stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-					close(serverSocket);
-
-					return -1;
-				}
-
-				else if (bytes == 0)
-				{
-					if (!quietMode)
-						fprintf(stderr, "Connection closed by server.\n");
-
-					char *err = strerror(errno);
-
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -1327,9 +1237,6 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 			else if (fds[1].revents & POLLIN)
 			{
-				if (!quietMode && (bytesReceived % (CHUNK_SIZE * 16) == 0))
-					fprintf(stdout, "Receiving data packet (%u KB/%u KB)...\n", bytesReceived / 1024, filesize / 1024);
-
 				uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived));
 
 				int bytes = 0;
@@ -1427,9 +1334,6 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 
 				if (fds[1].revents & POLLIN)
 				{
-					if (!quietMode && (bytesReceived % (CHUNK_SIZE * 8) == 0))
-						fprintf(stdout, "Receiving data packet (%u KB/%u KB)...\n", bytesReceived / 1024, filesize / 1024);
-
 					uint32_t bytesToReceive = (((filesize - bytesReceived) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesReceived));
 
 					int bytes = 0;
