@@ -71,7 +71,7 @@ int server_performance_mode(char *port, bool quietMode);
  * @param server_port The port of the server.
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes sent on success, -1 on failure.
 */
 int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
@@ -84,7 +84,7 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param server_port The port of the server.
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes sent on success, -1 on failure.
 */
 int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
@@ -96,7 +96,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param server_uds_path The path of the server (Unix Domain Socket).
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes sent on success, -1 on failure.
 */
 int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
@@ -107,7 +107,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param dataToSend The data to transfer.
  * @param filesize The size of the file to transfer.
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes sent on success, -1 on failure.
 */
 int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
 
@@ -118,7 +118,7 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
  * @param dataToSend The data to transfer.
  * @param filesize The size of the file to transfer.
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes sent on success, -1 on failure.
 */
 int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
 
@@ -130,7 +130,7 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
  * @param server_port The port of the server.
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes received on success, -1 on failure.
 */
 int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
@@ -142,7 +142,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
  * @param server_port The port of the server.
  * @param param The transfer parameter (TCP or UDP).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes received on success, -1 on failure.
 */
 int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
@@ -154,7 +154,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
  * @param server_uds_path The path of the server (Unix Domain Socket).
  * @param param The transfer parameter (Stream or Datagram).
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes received on success, -1 on failure.
 */
 int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
@@ -165,7 +165,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
  * @param filesize The size of the file to transfer.
  * @param file_name The name of the file to read from.
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes received on success, -1 on failure.
 */
 int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode);
 
@@ -176,7 +176,7 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
  * @param filesize The size of the file to transfer.
  * @param file_name The name of the file to read from.
  * @param quietMode Indicates whether to print activity messages or not.
- * @return 0 on success, 1 on failure.
+ * @return The number of bytes received on success, -1 on failure.
 */
 int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode);
 

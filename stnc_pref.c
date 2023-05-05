@@ -243,13 +243,9 @@ int client_performance_mode(char *ip, char *port, char *transferProtocol, char *
 
 	if (!quietMode)
 		fprintf(stdout, "End packet sent.\n"
-						"Closing connection...\n");
+						"Closing connection and cleaning up memory...\n");
 
 	close(chatSocket);
-
-	if (!quietMode)
-		fprintf(stdout, "Memory cleanup...\n");
-
 	free(data_to_send);
 
 	if (!quietMode)
@@ -265,6 +261,8 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	char fileName[STNC_PROTO_MAX_SIZE] = { 0 };
+
+	char *md5Hash = NULL;
 
 	uint8_t *data_to_receive = NULL;
 
@@ -422,6 +420,19 @@ int server_performance_mode(char *port, bool quietMode) {
 
 	fprintf(stdout, "File transfer complete.\n");
 
+	md5Hash = md5_calculate_checksum(data_to_receive, fileSize);
+
+	if (md5Hash == NULL)
+	{
+		fprintf(stderr, "Failed to calculate MD5 checksum.\n");
+		free(data_to_receive);
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
+
+	free(md5Hash);
+
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
 	if (!quietMode)
@@ -477,14 +488,11 @@ int server_performance_mode(char *port, bool quietMode) {
 	{
 		fprintf(stdout, "End packet received.\n");
 		stnc_print_packet_data(packetData);
-		fprintf(stdout, "Closing connection...\n");
+		fprintf(stdout, "Closing connection and cleaning up memory...\n");
 	}
 
 	close(chatSocket);
 	close(serverSocket);
-
-	if (!quietMode)
-		fprintf(stdout, "Memory cleanup...\n");
 
 	free(data_to_receive);
 
@@ -537,7 +545,7 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 			
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		if (!quietMode)
@@ -564,10 +572,11 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+
+			return -1;
 		}
 
-		bytesToSend += (uint32_t)bytes;
+		bytesSent += (uint32_t)bytes;
 	}
 
 	if (!quietMode && param == PARAM_TCP)
@@ -575,7 +584,7 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 
 	close(serverSocket);
 
-	return EXIT_SUCCESS;
+	return bytesSent;
 }
 
 int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode) {
@@ -603,7 +612,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (param == PARAM_TCP)
@@ -618,7 +627,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		if (!quietMode)
@@ -645,10 +654,10 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
-		bytesToSend += (uint32_t)bytes;
+		bytesSent += (uint32_t)bytes;
 	}
 
 	if (!quietMode && param == PARAM_TCP)
@@ -656,7 +665,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 
 	close(serverSocket);
 
-	return EXIT_SUCCESS;	
+	return bytesSent;	
 }
 
 int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode) {
@@ -684,7 +693,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (param == PARAM_STREAM)
@@ -699,7 +708,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		if (!quietMode)
@@ -726,7 +735,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		bytesToSend += (uint32_t)bytes;
@@ -737,7 +746,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
 
 	close(serverSocket);
 
-	return EXIT_SUCCESS;
+	return bytesSent;
 }
 
 int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode) {
@@ -756,7 +765,7 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if ((data = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
@@ -770,7 +779,7 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(fd);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	uint32_t *sentSize = (uint32_t *)data;
@@ -799,12 +808,12 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(fd);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	close(fd);
 
-	return EXIT_SUCCESS;
+	return bytesSent;
 }
 
 int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode) {
@@ -820,7 +829,7 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if ((fd = open(fifo_name, O_WRONLY)) == -1)
@@ -830,7 +839,7 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	while (bytesSent < filesize)
@@ -844,7 +853,7 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
 
 	close(fd);
 
-	return EXIT_SUCCESS;
+	return bytesSent;
 }
 
 int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode) {
@@ -867,7 +876,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	memset(&serverAddress, 0, sizeof(serverAddress));
@@ -888,7 +897,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(serverSocket);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (param == PARAM_TCP)
@@ -904,7 +913,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &len);
@@ -920,7 +929,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		fprintf(stdout, "Client connected from %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
@@ -949,7 +958,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(clientSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -982,7 +991,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(serverSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -994,7 +1003,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
 
-	return EXIT_SUCCESS;
+	return bytesReceived;
 }
 
 int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode) {
@@ -1038,7 +1047,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(serverSocket);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (param == PARAM_TCP)
@@ -1054,7 +1063,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &len);
@@ -1070,7 +1079,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		if (!quietMode)
@@ -1088,7 +1097,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(serverSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			fprintf(stdout, "Client connected from %s:%d.\n", clientIP, ntohs(clientAddress.sin6_port));
@@ -1118,7 +1127,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(clientSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -1151,7 +1160,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(serverSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -1163,7 +1172,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes.\n", bytesReceived);
 
-	return EXIT_SUCCESS;
+	return bytesReceived;
 }
 
 int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode) {
@@ -1194,7 +1203,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (bind(serverSocket, (struct sockaddr *)&serverAddress, len) < 0)
@@ -1208,7 +1217,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(serverSocket);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if (param == PARAM_STREAM)
@@ -1224,7 +1233,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		int clientSocket = INVALID_SOCKET;
@@ -1240,7 +1249,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		if (!quietMode)
@@ -1270,7 +1279,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(clientSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -1303,7 +1312,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 				stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 				close(serverSocket);
-				return EXIT_FAILURE;
+				return -1;
 			}
 
 			bytesReceived += (uint32_t)bytes;
@@ -1315,7 +1324,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
 
-	return EXIT_SUCCESS;
+	return bytesReceived;
 }
 
 int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode) {
@@ -1334,7 +1343,7 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if ((dataToReceive = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
@@ -1348,7 +1357,7 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(fd);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	dataToReceive += sizeof(uint32_t);
@@ -1375,7 +1384,7 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		close(fd);
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	close(fd);
@@ -1383,7 +1392,7 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
 
-	return EXIT_SUCCESS;
+	return bytesReceived;
 }
 
 int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode) {
@@ -1401,7 +1410,7 @@ int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* fil
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	if ((fd = open(file_name, O_RDONLY)) == -1)
@@ -1414,7 +1423,7 @@ int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* fil
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return EXIT_FAILURE;
+		return -1;
 	}
 
 	uint32_t bytesReceived = 0;
@@ -1434,7 +1443,7 @@ int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* fil
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(fd);
-			return EXIT_FAILURE;
+			return -1;
 		}
 
 		bytesReceived += bytesToReceived;
@@ -1445,5 +1454,5 @@ int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* fil
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
 
-	return EXIT_SUCCESS;
+	return bytesReceived;
 }
