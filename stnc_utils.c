@@ -334,24 +334,24 @@ uint32_t stnc_get_packet_size(uint8_t *buffer) {
 }
 
 char* md5_calculate_checksum(uint8_t *data, uint32_t size) {
-    EVP_MD_CTX *mdctx;
+	EVP_MD_CTX *mdctx;
 
-    uint8_t *md5_digest = NULL;
+	uint8_t *md5_digest = NULL;
 	char *checksumString = NULL;
 
-    uint32_t md5_digest_len = EVP_MD_size(EVP_md5());
+	uint32_t md5_digest_len = EVP_MD_size(EVP_md5());
     
-    // MD5_Init
-    mdctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
+	// MD5_Init
+	mdctx = EVP_MD_CTX_new();
+	EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
 
-    // MD5_Update
-    EVP_DigestUpdate(mdctx, data, size);
+	// MD5_Update
+	EVP_DigestUpdate(mdctx, data, size);
 
-    // MD5_Final
-    md5_digest = (uint8_t *)OPENSSL_malloc(md5_digest_len);
-    EVP_DigestFinal_ex(mdctx, md5_digest, &md5_digest_len);
-    EVP_MD_CTX_free(mdctx);
+	// MD5_Final
+	md5_digest = (uint8_t *)OPENSSL_malloc(md5_digest_len);
+	EVP_DigestFinal_ex(mdctx, md5_digest, &md5_digest_len);
+	EVP_MD_CTX_free(mdctx);
 
 	checksumString = (char *)calloc((md5_digest_len * 2 + 1), sizeof(char));
 
