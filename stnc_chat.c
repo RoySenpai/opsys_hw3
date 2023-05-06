@@ -28,7 +28,7 @@
 #include <unistd.h>
 #include "stnc.h"
 
-int client_chat_mode(char *ip, char *port) {
+int stnc_client_chat(char *ip, char *port) {
 	struct sockaddr_in server;
 	char buffer[MAX_MESSAGE_SIZE] = {0};
 
@@ -138,7 +138,7 @@ int client_chat_mode(char *ip, char *port) {
 	return EXIT_SUCCESS;
 }
 
-int server_chat_mode(char *port) {
+int stnc_server_chat(char *port) {
 	struct sockaddr_in server, client;
 
 	char buffer[MAX_MESSAGE_SIZE] = {0};

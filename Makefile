@@ -29,7 +29,7 @@ default: all
 ############
 # Programs #
 ############
-stnc: stnc.o stnc_chat.o stnc_pref.o stnc_utils.o
+stnc: stnc.o stnc_chat.o stnc_perf_c.o stnc_perf_s.o stnc_utils.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 ################

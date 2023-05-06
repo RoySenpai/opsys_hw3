@@ -32,14 +32,14 @@
  * @param port The port number of the server.
  * @return 0 on success, 1 on failure.
 */
-int client_chat_mode(char *ip, char *port);
+int32_t stnc_client_chat(char *ip, char *port);
 
 /*
  * @brief Server chat mode of the STNC program.
  * @param port The port number of the server.
  * @return 0 on success, 1 on failure.
 */
-int server_chat_mode(char *port);
+int32_t stnc_server_chat(char *port);
 
 /*
  * @brief Client performance mode of the STNC program.
@@ -51,7 +51,7 @@ int server_chat_mode(char *port);
  * @return 0 on success, 1 on failure.
  * @note This function is used by the main function of the STNC program.
 */
-int client_performance_mode(char *ip, char *port, char *transferType, char *transferProtocol, bool quietMode);
+int32_t stnc_client_performance(char *ip, char *port, char *transferType, char *transferProtocol, bool quietMode);
 
 /*
  * @brief Server performance mode of the STNC program.
@@ -60,7 +60,7 @@ int client_performance_mode(char *ip, char *port, char *transferType, char *tran
  * @return 0 on success, 1 on failure.
  * @note This function is used by the main function of the STNC program.
 */
-int server_performance_mode(char *port, bool quietMode);
+int32_t stnc_server_performance(char *port, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - IPv4.
@@ -73,7 +73,7 @@ int server_performance_mode(char *port, bool quietMode);
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes sent on success, -1 on failure.
 */
-int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - IPv6.
@@ -86,7 +86,7 @@ int perf_client_ipv4(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes sent on success, -1 on failure.
 */
-int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesize, char *server_ip, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - Unix Socket Domain.
@@ -98,7 +98,7 @@ int perf_client_ipv6(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes sent on success, -1 on failure.
 */
-int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - Memory Mapping Sharing.
@@ -109,7 +109,7 @@ int perf_client_unix(uint8_t* data, int chatsocket, uint32_t filesize, char *ser
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes sent on success, -1 on failure.
 */
-int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
+int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
 
 /*
  * @brief Client side of the performance mode of the STNC program - Pipe (FIFO)
@@ -120,7 +120,7 @@ int perf_client_memory(int chatsocket, char* file_name, uint8_t *dataToSend, uin
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes sent on success, -1 on failure.
 */
-int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
+int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *dataToSend, uint32_t filesize, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - IPv4.
@@ -132,7 +132,7 @@ int perf_client_pipe(int chatsocket, char* fifo_name, uint8_t *dataToSend, uint3
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes received on success, -1 on failure.
 */
-int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - IPv6.
@@ -144,7 +144,7 @@ int perf_server_ipv4(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes received on success, -1 on failure.
 */
-int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesize, uint16_t server_port, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - Unix Socket Domain.
@@ -156,7 +156,7 @@ int perf_server_ipv6(int chatsocket, uint8_t* data, uint32_t filesize, uint16_t 
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes received on success, -1 on failure.
 */
-int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
+int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesize, char *server_uds_path, stnc_transfer_param param, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - Memory Mapping Sharing.
@@ -167,7 +167,7 @@ int perf_server_unix(int chatsocket, uint8_t* data, uint32_t filesize, char *ser
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes received on success, -1 on failure.
 */
-int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode);
+int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t filesize, char *file_name, bool quietMode);
 
 /*
  * @brief Server side of the performance mode of the STNC program - Pipe (FIFO)
@@ -178,6 +178,6 @@ int perf_server_memory(int chatsocket, uint8_t* data, uint32_t filesize, char* f
  * @param quietMode Indicates whether to print activity messages or not.
  * @return The number of bytes received on success, -1 on failure.
 */
-int perf_server_pipe(int chatsocket, uint8_t* data, uint32_t filesize, char* file_name, bool quietMode);
+int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesize, char *file_name, bool quietMode);
 
 #endif

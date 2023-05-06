@@ -33,7 +33,7 @@
 #define INVALID_SOCKET -1
 
 /*
- * @brief Indicates whether to print activity messages or not for the client performance mode.
+ * @brief Indicates whether enable quiet mode or not for the client performance mode.
  * @note The value can be either true or false.
  * @note The default value is false.
 */
@@ -46,7 +46,6 @@
 */
 #define MIN_PORT_NUMBER 1024
 
-
 /*
  * @brief Defines the maximum size of a message, in chat mode.
  * @note The default value is 1024 bytes.
@@ -55,7 +54,8 @@
 
 /*
  * @brief Defines the chunk size of the generated file, in performance mode.
- * @note The default value is 65536 bytes.
+ * @note This is also the chunk size (segment size) of the TCP protocol.
+ * @note The default value is 65536 bytes (64KB).
 */
 #define CHUNK_SIZE 65536
 
@@ -75,7 +75,7 @@
 
 /*
  * @brief Defines the maximum size of a message, in performance mode.
- * @note The default value is 1024 bytes.
+ * @note The default value is 1024 bytes (1KB).
 */
 #define STNC_PROTO_MAX_SIZE 1024
 

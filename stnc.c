@@ -28,11 +28,11 @@
 #include "stnc.h"
 
 int main(int argc, char **argv) {
-	print_license();
+	stnc_print_license();
 
 	if (argc < 2)
 	{
-		print_usage(*argv, 0);
+		stnc_print_usage(*argv, 0);
 		return EXIT_FAILURE;
 	}
 
@@ -40,31 +40,31 @@ int main(int argc, char **argv) {
 	{
 		if (argc < 4 || argc > 7)
 		{
-			print_usage(*argv, 1);
+			stnc_print_usage(*argv, 1);
 			return EXIT_FAILURE;
 		}
 
 		else if (argc == 4)
 		{
 			fprintf(stdout, "Client chat mode\n");
-			return client_chat_mode(*(argv + 2), *(argv + 3));
+			return stnc_client_chat(*(argv + 2), *(argv + 3));
 		}
 
 		else if (strcmp(*(argv + 4), "-p") == 0)
 		{
 			if (argc != 7)
 			{
-				print_usage(*argv, 1);
+				stnc_print_usage(*argv, 1);
 				return EXIT_FAILURE;
 			}
 
 			fprintf(stdout, "Client performance mode\n");
-			return client_performance_mode(*(argv + 2), *(argv + 3), *(argv + 5), *(argv + 6), CLIENT_QUIET_MODE);
+			return stnc_client_performance(*(argv + 2), *(argv + 3), *(argv + 5), *(argv + 6), CLIENT_QUIET_MODE);
 		}
 
 		else
 		{
-			print_usage(*argv, 1);
+			stnc_print_usage(*argv, 1);
 			return EXIT_FAILURE;
 		}
 	}
@@ -73,14 +73,14 @@ int main(int argc, char **argv) {
 	{
 		if (argc < 3 || argc > 5)
 		{
-			print_usage(*argv, 2);
+			stnc_print_usage(*argv, 2);
 			return EXIT_FAILURE;
 		}
 
 		else if (argc == 3)
 		{
 			fprintf(stdout, "Server chat mode\n");
-			return server_chat_mode(*(argv + 2));
+			return stnc_server_chat(*(argv + 2));
 		}
 
 		else if (strcmp(*(argv + 3), "-p") == 0)
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 
 			if (argc != 4 && argc != 5)
 			{
-				print_usage(*argv, 2);
+				stnc_print_usage(*argv, 2);
 				return EXIT_FAILURE;
 			}
 
@@ -100,25 +100,29 @@ int main(int argc, char **argv) {
 
 				else
 				{
-					print_usage(*argv, 2);
+					stnc_print_usage(*argv, 2);
 					return EXIT_FAILURE;
 				}
 			}
 
 			fprintf(stdout, "Server performance mode\n");
-			return server_performance_mode(*(argv + 2), quietmode);
+
+			if (quietmode)
+				fprintf(stdout, "Quiet mode enabled\n");
+				
+			return stnc_server_performance(*(argv + 2), quietmode);
 		}
 
 		else
 		{
-			print_usage(*argv, 2);
+			stnc_print_usage(*argv, 2);
 			return EXIT_FAILURE;
 		}
 	}
 
 	else
 	{
-		print_usage(*argv, 0);
+		stnc_print_usage(*argv, 0);
 		return EXIT_FAILURE;
 	}
 

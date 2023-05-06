@@ -28,14 +28,14 @@
  * @return void (no return value).
  * @note This function is used by the main function of the STNC program.
 */
-void print_usage(char *programName, uint8_t mode);
+void stnc_print_usage(char *programName, uint8_t mode);
 
 /*
  * @brief Prints the license of the STNC program.
  * @return void (no return value).
  * @note This function is used by the main function of the STNC program.
 */
-void print_license();
+void stnc_print_license();
 
 /*
  * @brief Generates random data for the performace test, according to the given size.
@@ -46,7 +46,7 @@ void print_license();
  * @note If the size is not a multiple of 64KB, the last block will be smaller.
  * @note The caller is responsible for freeing the allocated memory.
 */
-uint8_t* generate_random_data(uint32_t size);
+uint8_t* util_generate_random_data(uint32_t size);
 
 /*
  * @brief Prints the given packet data.
@@ -54,7 +54,7 @@ uint8_t* generate_random_data(uint32_t size);
  * @return 0 on success, 1 on failure.
  * @note This function is used by the performance mode of the STNC program.
 */
-int stnc_print_packet_data(stnc_packet *packet);
+int32_t stnc_print_packet_data(stnc_packet *packet);
 
 /*
  * @brief Prints the payload of the given packet.
@@ -62,7 +62,7 @@ int stnc_print_packet_data(stnc_packet *packet);
  * @return 0 on success, 1 on failure.
  * @note This function is used by the performance mode of the STNC program.
 */
-int stnc_print_packet_payload(stnc_packet *packet);
+int32_t stnc_print_packet_payload(stnc_packet *packet);
 
 /*
  * @brief Calculates the MD5 hash of the given data.
@@ -72,7 +72,7 @@ int stnc_print_packet_payload(stnc_packet *packet);
  * 			or NULL on failure.
  * @note The returned string must be freed by the caller.
 */
-char* md5_calculate_checksum(uint8_t *data, uint32_t size);
+char* util_md5_checksum(uint8_t *data, uint32_t size);
 
 
 #endif

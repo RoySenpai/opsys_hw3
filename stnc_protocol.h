@@ -59,7 +59,7 @@ int stnc_prepare_packet(uint8_t *buffer, stnc_message_type type, stnc_transfer_p
  * @param quietMode Indicates whether to print activity messages or not.
  * @return number of bytes sent on success, -1 on failure.
 */
-int stnc_send_tcp_data(int socket, uint8_t *packet, bool quietMode);
+int stnc_send_tcp_data(int32_t socket, uint8_t *packet, bool quietMode);
 
 /*
  * @brief Receives a packet from the given socket.
@@ -68,7 +68,7 @@ int stnc_send_tcp_data(int socket, uint8_t *packet, bool quietMode);
  * @param quietMode Indicates whether to print activity messages or not.
  * @return number of bytes received on success, -1 on failure.
 */
-int stnc_receive_tcp_data(int socket, uint8_t *packet, bool quietMode);
+int stnc_receive_tcp_data(int32_t socket, uint8_t *packet, bool quietMode);
 
 /*
  * @brief Retrieves the type of the given packet.
