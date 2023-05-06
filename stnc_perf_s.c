@@ -143,38 +143,36 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		return EXIT_FAILURE;
 	}
 
-	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
-
-	if (!quietMode)
-		fprintf(stdout, "Sending ACK packet...\n");
-
-	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
+	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 	{
-		fprintf(stderr, "Failed to send ACK packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
+		if (!quietMode)
+			fprintf(stdout, "Sending ACK packet...\n");
+
+		stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
+		stnc_send_tcp_data(chatSocket, buffer, quietMode);
+
+		if (!quietMode)
+			fprintf(stdout, "ACK packet sent.\n"
+							"Waiting for data packet...\n");
+
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+		{
+			fprintf(stderr, "Failed to receive data packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+		{
+			fprintf(stdout, "Data packet received.\n");
+			stnc_print_packet_data(packetData);
+		}
+
+		strcpy(fileName, ((char *)packetData + sizeof(stnc_packet)));
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "ACK packet sent.\n"
-						"Waiting for data packet (file name)...\n");
-
-	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
-	{
-		fprintf(stderr, "Failed to receive data packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-	{
-		fprintf(stdout, "Data packet received.\n");
-		stnc_print_packet_data(packetData);
-	}
-
-	strcpy(fileName, ((char *)packetData + sizeof(stnc_packet)));
-
-	fprintf(stdout, "Starting file transfer...\n");
+		fprintf(stdout, "Starting file transfer...\n");
 
 	gettimeofday(&start, NULL);
 
@@ -236,7 +234,8 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 	gettimeofday(&end, NULL);
 
-	fprintf(stdout, "File transfer complete.\n");
+	if (!quietMode)
+		fprintf(stdout, "File transfer complete.\n");
 
 	md5Hash = util_md5_checksum(data_to_receive, actual_received);
 
@@ -247,7 +246,8 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
+	if (!quietMode)
+		fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
 
 	free(md5Hash);
 
@@ -255,11 +255,14 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 	transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
 
-	fprintf(stdout, "Total data received: %u KB (%0.2f%%).\n", (actual_received / 1024), (((float)actual_received / (float)fileSize) * 100));
-	fprintf(stdout, "Transfer time: %lf seconds\n", transferTime);
-	fprintf(stdout, "Transfer rate: %lf KB/s\n", ((double)actual_received / 1024) / transferTime);
+	char statics[STNC_PROTO_MAX_SIZE] = { 0 };
 
-	char statics[] = "Future statistics here.";
+	sprintf(statics, "Total data received: %u KB (%0.2f%%).\n"
+					"Transfer time: %0.3lf seconds\n"
+					"Transfer rate: %0.3lf KB/s\n", 
+					(actual_received / 1024), (((float)actual_received / (float)fileSize) * 100), transferTime, ((double)actual_received / 1024) / transferTime);
+
+	fprintf(stdout, "%s", statics);
 
 	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(statics) + 1), (uint8_t *)statics);
 
@@ -566,11 +569,13 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					if (!quietMode)
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-					stnc_print_packet_data((stnc_packet *)buffer);
+
+					if (!quietMode)
+					{
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+						stnc_print_packet_data((stnc_packet *)buffer);
+					}
 
 					break;
 				}
@@ -898,11 +903,13 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					if (!quietMode)
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-					stnc_print_packet_data((stnc_packet *)buffer);
+
+					if (!quietMode)
+					{
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+						stnc_print_packet_data((stnc_packet *)buffer);
+					}
 
 					break;
 				}
@@ -1203,11 +1210,13 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					if (!quietMode)
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-					stnc_print_packet_data((stnc_packet *)buffer);
+
+					if (!quietMode)
+					{
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+						stnc_print_packet_data((stnc_packet *)buffer);
+					}
 
 					break;
 				}
@@ -1294,7 +1303,7 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		return -1;
 	}
 
-	uint8_t *dataToReceive_tmp = dataToReceive;
+	uint8_t *dataToReceive_tmp = dataToReceive + sizeof(uint32_t);
 
 	uint32_t bytesReceived = 0;
 
@@ -1344,11 +1353,13 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 		if (fds[0].revents & POLLIN)
 		{
-			if (!quietMode)
-				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-			stnc_print_packet_data((stnc_packet *)buffer);
+			
+			if (!quietMode)
+			{
+				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+				stnc_print_packet_data((stnc_packet *)buffer);
+			}
 
 			break;
 		}
@@ -1483,11 +1494,13 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 		if (fds[0].revents & POLLIN)
 		{
-			if (!quietMode)
-				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-			stnc_print_packet_data((stnc_packet *)buffer);
+			
+			if (!quietMode)
+			{
+				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+				stnc_print_packet_data((stnc_packet *)buffer);
+			}
 
 			break;
 		}

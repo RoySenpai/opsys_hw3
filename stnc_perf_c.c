@@ -131,36 +131,43 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "Initilization packet sent.\n"
-						"Waiting for ACK packet...\n");
+		fprintf(stdout, "Initilization packet sent.\n");
 
-	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
-	{
-		fprintf(stderr, "Failed to receive ACK packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "ACK packet received.\n");
-
-	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(transferParam) + 1), (uint8_t*)transferParam);
-
-	if (!quietMode)
-		fprintf(stdout, "Sending data packet (file name)...\n");
-
-	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 	{
 		if (!quietMode)
-			fprintf(stderr, "Failed to send data packet.\n");
+			fprintf(stdout, "Waiting for ACK packet...\n");
 
-		close(chatSocket);
-		return EXIT_FAILURE;
+		if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+		{
+			fprintf(stderr, "Failed to receive ACK packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+			fprintf(stdout, "ACK packet received.\n");
+
+		stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(transferParam) + 1), (uint8_t*)transferParam);
+
+		if (!quietMode)
+			fprintf(stdout, "Sending data packet (file name)...\n");
+
+		if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Failed to send data packet.\n");
+
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+			fprintf(stdout, "Data packet sent.\n");
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "Data packet sent.\n"
-						"Waiting for ACK packet...\n");
+			fprintf(stdout, "Waiting for ACK packet...\n");
 
 	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
@@ -849,7 +856,7 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 	fd = fileno(fp);
 
-	ftruncate(fd, filesize);
+	ftruncate(fd, sizeof(uint32_t) + filesize);
 
 	if ((data = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
 	{
@@ -865,8 +872,11 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 		return -1;
 	}
 
-	uint8_t *dataPtr = data;
+	uint8_t *dataPtr = data + sizeof(uint32_t);
+	uint32_t *bytesWritten = (uint32_t *)dataPtr;
 	uint32_t bytesSent = 0;
+
+	*bytesWritten = 0;
 
 	struct pollfd fds[2];
 
@@ -950,6 +960,8 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 			dataPtr += bytesToSend;
 
 			bytesSent += bytesToSend;
+
+			*bytesWritten = bytesSent;
 		}
 	}
 

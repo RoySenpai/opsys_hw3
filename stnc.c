@@ -26,8 +26,6 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-	stnc_print_license();
-
 	if (argc < 2)
 	{
 		stnc_print_usage(*argv, 0);
@@ -44,6 +42,7 @@ int main(int argc, char **argv) {
 
 		else if (argc == 4)
 		{
+			stnc_print_license();
 			fprintf(stdout, "Client chat mode\n");
 			return stnc_client_chat(*(argv + 2), *(argv + 3));
 		}
@@ -55,6 +54,8 @@ int main(int argc, char **argv) {
 				stnc_print_usage(*argv, 1);
 				return EXIT_FAILURE;
 			}
+
+			stnc_print_license();
 
 			fprintf(stdout, "Client performance mode\n");
 			return stnc_client_performance(*(argv + 2), *(argv + 3), *(argv + 5), *(argv + 6), CLIENT_QUIET_MODE);
@@ -77,6 +78,7 @@ int main(int argc, char **argv) {
 
 		else if (argc == 3)
 		{
+			stnc_print_license();
 			fprintf(stdout, "Server chat mode\n");
 			return stnc_server_chat(*(argv + 2));
 		}
@@ -103,10 +105,11 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			fprintf(stdout, "Server performance mode\n");
-
-			if (quietmode)
-				fprintf(stdout, "Quiet mode enabled\n");
+			if (!quietmode)
+			{
+				stnc_print_license();
+				fprintf(stdout, "Server performance mode\n");
+			}
 				
 			return stnc_server_performance(*(argv + 2), quietmode);
 		}
