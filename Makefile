@@ -42,4 +42,4 @@ stnc: stnc.o stnc_chat.o stnc_perf_c.o stnc_perf_s.o stnc_utils.o
 # Cleanup files #
 #################
 clean:
-	$(RM) *.gch *.o stnc
+	$(RM) *.gch *.o *.sock stnc

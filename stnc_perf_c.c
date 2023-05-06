@@ -151,8 +151,6 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	if (!quietMode)
 		fprintf(stdout, "Sending data packet (file name)...\n");
 
-	stnc_print_packet_data((stnc_packet*)buffer);
-
 	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
 	{
 		if (!quietMode)
@@ -196,6 +194,12 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 			// TODO: Add support for other IPv6 addresses.
 			char ipv6Address[] = "::1";
 			ret = stnc_perf_client_ipv6(data_to_send, chatSocket, FILE_SIZE, ipv6Address, (portNumber + 1), param, quietMode);
+			break;
+		}
+
+		case PROTOCOL_UNIX:
+		{
+			ret = stnc_perf_client_unix(data_to_send, chatSocket, FILE_SIZE, STNC_UNIX_NAME, param, quietMode);
 			break;
 		}
 
@@ -682,7 +686,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
+			
 			return -1;
 		}
 
@@ -690,33 +694,119 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			fprintf(stdout, "Connection established with \"%s\"\n", server_uds_path);
 	}
 
+	struct pollfd fds[2];
+
+	fds[0].fd = chatsocket;
+	fds[0].events = POLLIN;
+	fds[1].fd = serverSocket;
+	fds[1].events = POLLOUT;
+
 	while (bytesSent < filesize)
 	{
-		if (!quietMode)
-			fprintf(stdout, "Sending data packet (%u/%u)...\n", bytesSent, filesize);
-		
-		uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
-		int32_t bytes = (param == PARAM_STREAM ? send(serverSocket, data + bytesSent, CHUNK_SIZE, bytesToSend):sendto(serverSocket, data + bytesSent, CHUNK_SIZE, bytesToSend, (struct sockaddr *)&serverAddress, sizeof(serverAddress)));
-
-		if (bytes == -1)
+		if (ret < 0)
 		{
 			if (!quietMode)
-				fprintf(stderr, "Failed to send data packet.\n");
+				perror("poll");
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
+
 			return -1;
 		}
 
-		bytesToSend += (uint32_t)bytes;
+		// This should never happen, and if it does, it's a critical bug.
+		// Nevertherless, we still check for it.
+		else if (ret == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
+
+			char err[] = "Poll timeout occured. Abort action immediately.";
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(serverSocket);
+
+			return -1;
+		}
+
+		if (fds[0].revents & POLLIN)
+		{
+			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+
+			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Error packet received.\n");
+
+				stnc_print_packet_data((stnc_packet *)buffer);
+
+				close(serverSocket);
+
+				return -1;
+			}
+		}
+
+		if (fds[1].revents & POLLOUT)
+		{
+			if (param == PARAM_STREAM)
+			{
+				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+
+				int32_t bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
+
+				if (bytes <= 0)
+				{
+					if (!quietMode)
+						perror("send");
+
+					char *err = strerror(errno);
+
+					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+					close(serverSocket);
+
+					return -1;
+				}
+
+				bytesSent += bytes;
+			}
+
+			else
+			{
+				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesSent));
+				
+				int32_t bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, len);
+
+				if (bytes <= 0)
+				{
+					if (!quietMode)
+						perror("sendto");
+
+					char *err = strerror(errno);
+
+					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+					close(serverSocket);
+
+					return -1;
+				}
+
+				bytesSent += bytes;
+			}
+		}
 	}
 
-	if (!quietMode)
+	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with \"%s\"\n", server_uds_path);
 
 	close(serverSocket);

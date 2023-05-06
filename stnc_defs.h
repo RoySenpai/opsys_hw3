@@ -88,11 +88,11 @@
 #define STNC_POLL_TIMEOUT 1000
 
 /*
- * @brief Sets the name of the UNIX socket, for the performance mode.
- * @note The default value is "stnc_unix_socket".
+ * @brief Sets the name of the UNIX socket of the server, for the performance mode.
+ * @note The default value is "stnc_uds.sock".
  * @note The name must be shorter than 108 characters.
 */
-#define STNC_UNIX_NAME "stnc_unix_socket"
+#define STNC_UNIX_NAME "stnc_uds.sock"
 
 /****************************/
 /* Enumerations declaration */
