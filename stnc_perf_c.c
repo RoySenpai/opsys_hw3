@@ -16,6 +16,9 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Indicating that we are using POSIX 2008, for the use of the function "fileno".
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -203,6 +206,12 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 			break;
 		}
 
+		case PROTOCOL_MMAP:
+		{
+			ret = stnc_perf_client_memory(chatSocket, transferParam, data_to_send, FILE_SIZE, quietMode);
+			break;
+		}
+
 		default:
 		{
 			fprintf(stderr, "Invalid protocol.\n");
@@ -259,6 +268,8 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	if (!quietMode)
 		fprintf(stdout, "Statistics packet received.\n");
+
+	stnc_print_packet_payload((stnc_packet *)buffer);
 
 	stnc_prepare_packet(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
 
@@ -820,18 +831,24 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 	int32_t fd = INVALID_SOCKET;
 
-	if ((fd = open(file_name, O_RDWR)) == -1)
-	{
-		if (!quietMode)
-			fprintf(stderr, "Failed to open file \"%s\"\n", file_name);
+	FILE *fp = NULL;
 
+	if ((fp = fopen(file_name, "w+")) == NULL)
+	{
 		char *err = strerror(errno);
+
+		if (!quietMode)
+			fprintf(stderr, "Failed to open file \"%s\": %s\n", file_name, err);
 
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return -1;
 	}
+
+	fd = fileno(fp);
+
+	ftruncate(fd, filesize);
 
 	if ((data = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)) == MAP_FAILED)
 	{
@@ -843,23 +860,96 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		close(fd);
+		fclose(fp);
 		return -1;
 	}
 
-	uint32_t *sentSize = (uint32_t *)data;
-	data += sizeof(uint32_t);
-
+	uint8_t *dataPtr = data;
 	uint32_t bytesSent = 0;
+
+	struct pollfd fds[2];
+
+	fds[0].fd = chatsocket;
+	fds[0].events = POLLIN;
+	fds[1].fd = fd;
+	fds[1].events = POLLOUT;
+
+	if (!quietMode)
+		fprintf(stdout, "Sending ACK to server to start sending data...\n");
+
+	stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
+	stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+	if (!quietMode)
+		fprintf(stdout, "ACK sent, starting sending data...\n");
 
 	while (bytesSent < filesize)
 	{
-		uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
-		memcpy(data + bytesSent, dataToSend + bytesSent, bytesToSend);
+		if (ret < 0)
+		{
+			if (!quietMode)
+				perror("poll");
 
-		bytesSent += bytesToSend;
-		*sentSize = bytesSent;
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			munmap(data, sizeof(uint32_t) + filesize);
+			fclose(fp);
+
+			return -1;
+		}
+
+		// This should never happen, and if it does, it's a critical bug.
+		// Nevertherless, we still check for it.
+		else if (ret == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
+
+			char err[] = "Poll timeout occured. Abort action immediately.";
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			munmap(data, sizeof(uint32_t) + filesize);
+			fclose(fp);
+
+			return -1;
+		}
+
+		if (fds[0].revents & POLLIN)
+		{
+			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+
+			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Error packet received.\n");
+
+				stnc_print_packet_data((stnc_packet *)buffer);
+
+				munmap(data, sizeof(uint32_t) + filesize);
+				fclose(fp);
+
+				return -1;
+			}
+		}
+
+		else if (fds[1].revents & POLLOUT)
+		{
+			uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+
+			memcpy(dataPtr, dataToSend, bytesToSend);
+
+			dataToSend += bytesToSend;
+			dataPtr += bytesToSend;
+
+			bytesSent += bytesToSend;
+		}
 	}
 
 	if (munmap(data, sizeof(uint32_t) + filesize) == -1)
@@ -872,11 +962,14 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		close(fd);
+		fclose(fp);
 		return -1;
 	}
 
-	close(fd);
+	fclose(fp);
+
+	if (!quietMode)
+		fprintf(stdout, "Memory mapped file \"%s\" sent successfully.\n", file_name);
 
 	return bytesSent;
 }

@@ -16,6 +16,9 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Indicating that we are using POSIX 2008, for the use of the function "fileno".
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -123,11 +126,8 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 	if (!quietMode)
 	{
-		fprintf(stdout, "Initilization packet received.\n"
-						"Protocol: %u\n"
-						"Param: %u\n"
-						"File size: %u\n", protocol, param, fileSize);
-
+		fprintf(stdout, "Initilization packet received.\n");
+		stnc_print_packet_data((stnc_packet *)buffer);
 		fprintf(stdout, "Allocating %u bytes (%u KB) of memory...\n", fileSize, (fileSize / 1024));
 	}
 
@@ -202,6 +202,19 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			break;
 		}
 
+		case PROTOCOL_MMAP:
+		{
+			// ACK placeholder (we actually need to receive an ACK packet, but the client also expects an ACK packet)/
+			stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
+			stnc_send_tcp_data(chatSocket, buffer, quietMode);
+
+			// Waiting for the client to send the file size.
+			stnc_receive_tcp_data(chatSocket, buffer, quietMode);
+
+			actual_received = stnc_perf_server_memory(chatSocket, data_to_receive, fileSize, fileName, quietMode);
+			break;
+		}
+
 		default:
 		{
 			fprintf(stderr, "Invalid protocol.\n");
@@ -272,7 +285,6 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 	if (!quietMode)
 	{
 		fprintf(stdout, "End packet received.\n");
-		stnc_print_packet_data(packetData);
 		fprintf(stdout, "Closing connection and cleaning up memory...\n");
 	}
 
@@ -1234,6 +1246,9 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
 	}
 
+	// Cleanup
+	unlink(server_uds_path);
+
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes, expected %u bytes.\n", bytesReceived, filesize);
 
@@ -1246,7 +1261,9 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 	int32_t fd = INVALID_SOCKET;
 
-	if ((fd = open(file_name, O_RDONLY)) == -1)
+	FILE* fp = NULL;
+
+	if ((fp = fopen(file_name, "r")) == NULL)
 	{
 		if (!quietMode)
 			fprintf(stderr, "Failed to open file \"%s\"\n", file_name);
@@ -1259,6 +1276,8 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		return -1;
 	}
 
+	fd = fileno(fp);
+
 	if ((dataToReceive = mmap(NULL, sizeof(uint32_t) + filesize, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED)
 	{
 		if (!quietMode)
@@ -1269,21 +1288,80 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		close(fd);
+		fclose(fp);
 		return -1;
 	}
 
-	dataToReceive += sizeof(uint32_t);
+	uint8_t *dataToReceive_tmp = dataToReceive;
 
 	uint32_t bytesReceived = 0;
 
+	struct pollfd fds[2];
+
+	fds[0].fd = chatsocket;
+	fds[0].events = POLLIN;
+
+	fds[1].fd = fd;
+	fds[1].events = POLLIN;
+
 	while (bytesReceived < filesize)
 	{
-		uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
-		memcpy(data + bytesReceived, dataToReceive, bytesToReceived);
+		if (ret < 0)
+		{
+			if (!quietMode)
+				perror("poll");
 
-		bytesReceived += bytesToReceived;
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			fclose(fp);
+
+			return -1;
+		}
+
+		// This should never happen, and if it does, it's a critical bug.
+		// Nevertherless, we still check for it.
+		else if (ret == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
+
+			char err[] = "Poll timeout occured. Abort action immediately.";
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			fclose(fp);
+
+			return -1;
+		}
+
+		if (fds[0].revents & POLLIN)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+			stnc_print_packet_data((stnc_packet *)buffer);
+
+			break;
+		}
+
+		if (fds[1].revents & POLLIN)
+		{
+			uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+
+			memcpy(data, dataToReceive, bytesToReceived);
+
+			data += bytesToReceived;
+			dataToReceive_tmp += bytesToReceived;
+
+			bytesReceived += bytesToReceived;
+		}
 	}
 
 	if (munmap(dataToReceive, sizeof(uint32_t) + filesize) == -1)
@@ -1296,11 +1374,20 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_MMAP, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		close(fd);
+		fclose(fp);
 		return -1;
 	}
 
-	close(fd);
+	fclose(fp);
+
+	if (bytesReceived == filesize)
+	{
+		// Syncronization with the sender.
+		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+	}
+
+	// Clean up, remove the file, as it's no longer needed.
+	remove(file_name);
 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
