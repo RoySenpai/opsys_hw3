@@ -16,11 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Indicating that we are using POSIX 2008, for the use of the function "fileno".
-#define _POSIX_C_SOURCE 200809L
-
-#include <stdio.h>
-#include <stdbool.h>
+#include "stnc.h"
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -36,7 +32,6 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
-#include "stnc.h"
 
 int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, char *transferParam, bool quietMode) {
 	struct sockaddr_in serverAddress;
@@ -209,6 +204,12 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		case PROTOCOL_MMAP:
 		{
 			ret = stnc_perf_client_memory(chatSocket, transferParam, data_to_send, FILE_SIZE, quietMode);
+			break;
+		}
+
+		case PROTOCOL_PIPE:
+		{
+			ret = stnc_perf_client_pipe(chatSocket, transferParam, data_to_send, FILE_SIZE, quietMode);
 			break;
 		}
 
@@ -980,8 +981,13 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 	uint32_t bytesSent = 0;
 
-	if (mkfifo(fifo_name, 0666) == -1)
+	unlink(fifo_name);
+
+	if (mknod(fifo_name, S_IFIFO | 0644, 0) == -1)
 	{
+		if (!quietMode)
+			perror("mknod");
+		
 		char *err = strerror(errno);
 
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
@@ -992,6 +998,9 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 	if ((fd = open(fifo_name, O_WRONLY)) == -1)
 	{
+		if (!quietMode)
+			perror("open");
+		
 		char *err = strerror(errno);
 
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);

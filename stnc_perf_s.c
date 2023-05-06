@@ -16,11 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Indicating that we are using POSIX 2008, for the use of the function "fileno".
-#define _POSIX_C_SOURCE 200809L
-
-#include <stdio.h>
-#include <stdbool.h>
+#include "stnc.h"
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -212,6 +208,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			stnc_receive_tcp_data(chatSocket, buffer, quietMode);
 
 			actual_received = stnc_perf_server_memory(chatSocket, data_to_receive, fileSize, fileName, quietMode);
+			break;
+		}
+
+		case PROTOCOL_PIPE:
+		{
+			actual_received = stnc_perf_server_pipe(chatSocket, data_to_receive, fileSize, fileName, quietMode);
 			break;
 		}
 
@@ -1400,11 +1402,20 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 	int32_t fd = INVALID_SOCKET;
 
-	if (mkfifo(file_name, 0666) == -1)
+	if (!quietMode)
+		fprintf(stdout, "Sending ACK to client to start sending data...\n");
+
+	stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_PIPE, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
+	stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+	if (!quietMode)
+		fprintf(stdout, "ACK sent, waiting for client to start sending data on FIFO %s...\n", file_name);
+
+	if (mknod(file_name, S_IFIFO | 0644, 0) == -1)
 	{
 		if (!quietMode)
-			perror("mkfifo");
-
+			perror("mknod");
+		
 		char *err = strerror(errno);
 
 		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
@@ -1450,6 +1461,15 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 	}
 
 	close(fd);
+
+	if (bytesReceived == filesize)
+	{
+		// Syncronization with the sender.
+		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+	}
+
+	// Clean up, remove the file, as it's no longer needed.
+	unlink(file_name);
 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);

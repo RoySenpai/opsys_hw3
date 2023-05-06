@@ -16,8 +16,7 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdbool.h>
+#include "stnc.h"
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -25,7 +24,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "stnc.h"
 
 int main(int argc, char **argv) {
 	stnc_print_license();
