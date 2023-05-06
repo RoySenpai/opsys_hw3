@@ -315,7 +315,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			}
 		}
 
-		snprintf(statics, (sizeof(statics) - 1), "Total data received: %u KB (%0.2f%%)\nTransfer time: %0.3lf seconds (%0.3lf ms)\nTransfer rate: %0.3lf KB/s (%0.3lf MB/s)", 
+		snprintf(statics, (sizeof(statics) - 1), "Total data received: %u KB (%0.2f%%)\nTransfer time: %0.3lf seconds (%0.3lf ms)\nTransfer rate: %0.3lf KB/s (%0.3lf MB/s)\n)", 
 											(actual_received / 1024), (((float)actual_received / (float)fileSize) * 100), transferTime, (transferTime * 1000), (((double)actual_received / 1024) / transferTime), ((double)actual_received / (1024 * 1024)) / transferTime);
 
 		if (!quietMode)
