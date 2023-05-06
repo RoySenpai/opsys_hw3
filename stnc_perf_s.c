@@ -204,7 +204,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
 			stnc_send_tcp_data(chatSocket, buffer, quietMode);
 
-			// Waiting for the client to send the file size.
+			// Waiting for the client to actually start writing the file.
 			stnc_receive_tcp_data(chatSocket, buffer, quietMode);
 
 			actual_received = stnc_perf_server_memory(chatSocket, data_to_receive, fileSize, fileName, quietMode);
@@ -1402,26 +1402,24 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 	int32_t fd = INVALID_SOCKET;
 
-	if (!quietMode)
-		fprintf(stdout, "Sending ACK to client to start sending data...\n");
-
 	stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_PIPE, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
 	stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-	if (!quietMode)
-		fprintf(stdout, "ACK sent, waiting for client to start sending data on FIFO %s...\n", file_name);
-
-	if (mknod(file_name, S_IFIFO | 0644, 0) == -1)
+	if (mkfifo(file_name, 0644) == -1)
 	{
-		if (!quietMode)
-			perror("mknod");
-		
-		char *err = strerror(errno);
+		// Ignore the error if the file already exists, since it's OK.
+		if (errno != EEXIST)
+		{
+			if (!quietMode)
+				perror("mknod");
+			
+			char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
-		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return -1;
+			return -1;
+		}
 	}
 
 	if ((fd = open(file_name, O_RDONLY)) == -1)
@@ -1439,25 +1437,81 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 	uint32_t bytesReceived = 0;
 
+	struct pollfd fds[2];
+
+	fds[0].fd = chatsocket;
+	fds[0].events = POLLIN;
+
+	fds[1].fd = fd;
+	fds[1].events = POLLIN;
+
 	while (bytesReceived < filesize)
 	{
-		uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
-		if (read(fd, data + bytesReceived, bytesToReceived) == -1)
+		if (ret < 0)
 		{
 			if (!quietMode)
-				perror("write");
+				perror("poll");
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(fd);
+
 			return -1;
 		}
 
-		bytesReceived += bytesToReceived;
+		// This should never happen, and if it does, it's a critical bug.
+		// Nevertherless, we still check for it.
+		else if (ret == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
+
+			char err[] = "Poll timeout occured. Abort action immediately.";
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(fd);
+
+			return -1;
+		}
+
+		if (fds[0].revents & POLLIN)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+			stnc_print_packet_data((stnc_packet *)buffer);
+
+			break;
+		}
+
+		if (fds[1].revents & POLLIN)
+		{
+			uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+
+			if (read(fd, data + bytesReceived, bytesToReceived) == -1)
+			{
+				if (!quietMode)
+					perror("write");
+
+				char *err = strerror(errno);
+
+				stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+				stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+				close(fd);
+				return -1;
+			}
+
+			bytesReceived += bytesToReceived;
+		}
 	}
 
 	close(fd);

@@ -981,19 +981,21 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 	uint32_t bytesSent = 0;
 
-	unlink(fifo_name);
-
-	if (mknod(fifo_name, S_IFIFO | 0644, 0) == -1)
+	if (mkfifo(fifo_name, 0644) == -1)
 	{
-		if (!quietMode)
-			perror("mknod");
-		
-		char *err = strerror(errno);
+		// Ignore the error if the file already exists, since it's OK.
+		if (errno != EEXIST)
+		{
+			if (!quietMode)
+				perror("mknod");
+			
+			char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
-		stnc_send_tcp_data(chatsocket, buffer, quietMode);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-		return -1;
+			return -1;
+		}
 	}
 
 	if ((fd = open(fifo_name, O_WRONLY)) == -1)
@@ -1009,16 +1011,79 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 		return -1;
 	}
 
+	struct pollfd fds[2];
+
+	fds[0].fd = chatsocket;
+	fds[0].events = POLLIN;
+	fds[1].fd = fd;
+	fds[1].events = POLLOUT;
+
 	while (bytesSent < filesize)
 	{
-		uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
 
-		write(fd, dataToSend + bytesSent, bytesToSend);
+		if (ret < 0)
+		{
+			if (!quietMode)
+				perror("poll");
 
-		bytesSent += bytesToSend;
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(fd);
+
+			return -1;
+		}
+
+		// This should never happen, and if it does, it's a critical bug.
+		// Nevertherless, we still check for it.
+		else if (ret == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
+
+			char err[] = "Poll timeout occured. Abort action immediately.";
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+
+			close(fd);
+
+			return -1;
+		}
+
+		if (fds[0].revents & POLLIN)
+		{
+			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+
+			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Error packet received.\n");
+
+				stnc_print_packet_data((stnc_packet *)buffer);
+
+				close(fd);
+
+				return -1;
+			}
+		}
+
+		else if (fds[1].revents & POLLOUT)
+		{
+			uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
+
+			write(fd, dataToSend + bytesSent, bytesToSend);
+
+			bytesSent += bytesToSend;
+		}
 	}
 
 	close(fd);
+
+	unlink(fifo_name);
 
 	return bytesSent;
 }
