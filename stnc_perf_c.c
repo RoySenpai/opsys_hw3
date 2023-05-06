@@ -33,9 +33,10 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+struct timeval startC, endC;
+
 int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, char *transferParam, bool quietMode) {
 	struct sockaddr_in serverAddress;
-	struct timeval start, end;
 
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	uint8_t *data_to_send = NULL;
@@ -182,8 +183,6 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	fprintf(stdout, "Starting transfer...\n");
 
 	int32_t ret = 0;
-
-	gettimeofday(&start, NULL);
 	
 	switch(protocol)
 	{
@@ -237,15 +236,13 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		return EXIT_FAILURE;
 	}
 
-	gettimeofday(&end, NULL);
-
 	fprintf(stdout, "File transfer complete.\n"
 					"Sent total of %d bytes (%d KB, %d MB).\n", ret, (ret / 1024), (ret / (1024 * 1024)));
 
-	double transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
+	double transferTime = (double)(endC.tv_sec - startC.tv_sec) + ((double)(endC.tv_usec - startC.tv_usec) / 1000000);
 
-	fprintf(stdout, "Transfer time: %.2f seconds.\n"
-					"Transfer speed: %.2f KB/s.\n", transferTime, ((double)ret / 1024) / transferTime);
+	fprintf(stdout, "Transfer time: %0.3lf seconds (%0.3lf ms).\n"
+					"Transfer speed: %0.3lf KB/s (%0.3lf MB/s).\n", transferTime, transferTime * 1000, ((double)ret / 1024) / transferTime, ((double)ret / (1024 * 1024)) / transferTime);
 
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
@@ -375,6 +372,8 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 	fds[1].fd = serverSocket;
 	fds[1].events = POLLOUT;
 
+	gettimeofday(&startC, NULL);
+
 	while (bytesSent < filesize)
 	{
 		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -480,6 +479,8 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 		}
 	}
 
+	gettimeofday(&endC, NULL);
+
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with %s:%d\n", server_ip, server_port);
 
@@ -552,6 +553,8 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 	fds[0].events = POLLIN;
 	fds[1].fd = serverSocket;
 	fds[1].events = POLLOUT;
+
+	gettimeofday(&startC, NULL);
 
 	while (bytesSent < filesize)
 	{
@@ -658,6 +661,8 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 		}
 	}
 
+	gettimeofday(&endC, NULL);
+
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with %s:%d\n", server_ip, server_port);
 
@@ -719,6 +724,8 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 	fds[0].events = POLLIN;
 	fds[1].fd = serverSocket;
 	fds[1].events = POLLOUT;
+
+	gettimeofday(&startC, NULL);
 
 	while (bytesSent < filesize)
 	{
@@ -825,6 +832,8 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 		}
 	}
 
+	gettimeofday(&endC, NULL);
+
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with \"%s\"\n", server_uds_path);
 
@@ -893,6 +902,8 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 	if (!quietMode)
 		fprintf(stdout, "ACK sent, starting sending data...\n");
+
+	gettimeofday(&startC, NULL);
 
 	while (bytesSent < filesize)
 	{
@@ -965,6 +976,8 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 		}
 	}
 
+	gettimeofday(&endC, NULL);
+
 	if (munmap(data, sizeof(uint32_t) + filesize) == -1)
 	{
 		if (!quietMode)
@@ -1030,6 +1043,8 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 	fds[1].fd = fd;
 	fds[1].events = POLLOUT;
 
+	gettimeofday(&startC, NULL);
+
 	while (bytesSent < filesize)
 	{
 		int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -1092,6 +1107,8 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 			bytesSent += bytesToSend;
 		}
 	}
+
+	gettimeofday(&endC, NULL);
 
 	close(fd);
 

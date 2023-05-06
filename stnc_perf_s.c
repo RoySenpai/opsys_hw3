@@ -33,9 +33,10 @@
 #include <unistd.h>
 #include "stnc.h"
 
+struct timeval start, end;
+
 int32_t stnc_server_performance(char *port, bool quietMode) {
 	struct sockaddr_in serverAddress, clientAddress;
-	struct timeval start, end;
 
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	char fileName[STNC_PROTO_MAX_SIZE] = { 0 };
@@ -95,214 +96,274 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "Waiting for connection...\n");
+		fprintf(stdout, "Waiting for connections...\n");
 
-	if ((chatSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)
+	while (true)
 	{
-		perror("accept");
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-	{
-		fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
-		fprintf(stdout, "Waiting for initilization packet...\n");
-	}
-
-	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_INIT)
-	{
-		fprintf(stderr, "Failed to receive initilization packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	protocol = stnc_get_packet_protocol(buffer);
-	param = stnc_get_packet_param(buffer);
-	fileSize = stnc_get_packet_size(buffer);
-
-	if (!quietMode)
-	{
-		fprintf(stdout, "Initilization packet received.\n");
-		stnc_print_packet_data((stnc_packet *)buffer);
-		fprintf(stdout, "Allocating %u bytes (%u KB) of memory...\n", fileSize, (fileSize / 1024));
-	}
-
-	data_to_receive = (uint8_t *)malloc(fileSize * sizeof(uint8_t));
-
-	if (data_to_receive == NULL)
-	{
-		if (!quietMode)
-			fprintf(stderr, "Failed to allocate memory.\n");
-
-		char *err = strerror(errno);
-
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_ALLOC, (strlen(err) + 1), (uint8_t *)err);
-		stnc_send_tcp_data(chatSocket, buffer, quietMode);
-		
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
-	{
-		if (!quietMode)
-			fprintf(stdout, "Sending ACK packet...\n");
-
-		stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
-		stnc_send_tcp_data(chatSocket, buffer, quietMode);
-
-		if (!quietMode)
-			fprintf(stdout, "ACK packet sent.\n"
-							"Waiting for data packet...\n");
-
-		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+		if ((chatSocket = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressLength)) < 0)
 		{
-			fprintf(stderr, "Failed to receive data packet.\n");
-			close(chatSocket);
+			perror("accept");
 			return EXIT_FAILURE;
 		}
 
 		if (!quietMode)
 		{
-			fprintf(stdout, "Data packet received.\n");
-			stnc_print_packet_data(packetData);
+			fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+			fprintf(stdout, "Waiting for initilization packet...\n");
 		}
 
-		strcpy(fileName, ((char *)packetData + sizeof(stnc_packet)));
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "Starting file transfer...\n");
-
-	gettimeofday(&start, NULL);
-
-	switch(protocol)
-	{
-		case PROTOCOL_IPV4:
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_INIT)
 		{
-			actual_received = stnc_perf_server_ipv4(chatSocket, data_to_receive, fileSize, (portNumber + 1), param, quietMode);
-			break;
+			fprintf(stderr, "Failed to receive initilization packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
 		}
 
-		case PROTOCOL_IPV6:
+		protocol = stnc_get_packet_protocol(buffer);
+		param = stnc_get_packet_param(buffer);
+		fileSize = stnc_get_packet_size(buffer);
+
+		if (!quietMode)
 		{
-			actual_received = stnc_perf_server_ipv6(chatSocket, data_to_receive, fileSize, (portNumber + 1), param, quietMode);
-			break;
+			fprintf(stdout, "Initilization packet received.\n");
+			stnc_print_packet_data((stnc_packet *)buffer);
+			fprintf(stdout, "Allocating %u bytes (%u KB) of memory...\n", fileSize, (fileSize / 1024));
 		}
 
-		case PROTOCOL_UNIX:
+		data_to_receive = (uint8_t *)malloc(fileSize * sizeof(uint8_t));
+
+		if (data_to_receive == NULL)
 		{
-			actual_received = stnc_perf_server_unix(chatSocket, data_to_receive, fileSize, STNC_UNIX_NAME, param, quietMode);
-			break;
+			if (!quietMode)
+				fprintf(stderr, "Failed to allocate memory.\n");
+
+			char *err = strerror(errno);
+
+			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_ALLOC, (strlen(err) + 1), (uint8_t *)err);
+			stnc_send_tcp_data(chatSocket, buffer, quietMode);
+			
+			close(chatSocket);
+			return EXIT_FAILURE;
 		}
 
-		case PROTOCOL_MMAP:
+		if (!quietMode)
+			fprintf(stdout, "Memory allocated.\n");
+
+		if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		{
-			// ACK placeholder (we actually need to receive an ACK packet, but the client also expects an ACK packet)/
-			stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
+			if (!quietMode)
+				fprintf(stdout, "Sending ACK packet...\n");
+
+			stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 			stnc_send_tcp_data(chatSocket, buffer, quietMode);
 
-			// Waiting for the client to actually start writing the file.
-			stnc_receive_tcp_data(chatSocket, buffer, quietMode);
+			if (!quietMode)
+				fprintf(stdout, "ACK packet sent.\n"
+								"Waiting for data packet...\n");
 
-			actual_received = stnc_perf_server_memory(chatSocket, data_to_receive, fileSize, fileName, quietMode);
-			break;
+			if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+			{
+				fprintf(stderr, "Failed to receive data packet.\n");
+				close(chatSocket);
+				return EXIT_FAILURE;
+			}
+
+			if (!quietMode)
+			{
+				fprintf(stdout, "Data packet received.\n");
+				stnc_print_packet_data(packetData);
+			}
+
+			strcpy(fileName, ((char *)packetData + sizeof(stnc_packet)));
 		}
 
-		case PROTOCOL_PIPE:
+		if (!quietMode)
+			fprintf(stdout, "Starting file transfer...\n");
+
+		switch(protocol)
 		{
-			actual_received = stnc_perf_server_pipe(chatSocket, data_to_receive, fileSize, fileName, quietMode);
-			break;
+			case PROTOCOL_IPV4:
+			{
+				actual_received = stnc_perf_server_ipv4(chatSocket, data_to_receive, fileSize, (portNumber + 1), param, quietMode);
+				break;
+			}
+
+			case PROTOCOL_IPV6:
+			{
+				actual_received = stnc_perf_server_ipv6(chatSocket, data_to_receive, fileSize, (portNumber + 1), param, quietMode);
+				break;
+			}
+
+			case PROTOCOL_UNIX:
+			{
+				actual_received = stnc_perf_server_unix(chatSocket, data_to_receive, fileSize, STNC_UNIX_NAME, param, quietMode);
+				break;
+			}
+
+			case PROTOCOL_MMAP:
+			{
+				// ACK placeholder (we actually need to receive an ACK packet, but the client also expects an ACK packet)/
+				stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
+				stnc_send_tcp_data(chatSocket, buffer, quietMode);
+
+				// Waiting for the client to actually start writing the file.
+				stnc_receive_tcp_data(chatSocket, buffer, quietMode);
+
+				actual_received = stnc_perf_server_memory(chatSocket, data_to_receive, fileSize, fileName, quietMode);
+				break;
+			}
+
+			case PROTOCOL_PIPE:
+			{
+				actual_received = stnc_perf_server_pipe(chatSocket, data_to_receive, fileSize, fileName, quietMode);
+				break;
+			}
+
+			default:
+			{
+				fprintf(stderr, "Invalid protocol.\n");
+				free(data_to_receive);
+				close(chatSocket);
+				return EXIT_FAILURE;
+			}
 		}
 
-		default:
+		if (actual_received == -1)
 		{
-			fprintf(stderr, "Invalid protocol.\n");
+			fprintf(stderr, "Failed to receive data packet.\n");
 			free(data_to_receive);
 			close(chatSocket);
 			return EXIT_FAILURE;
 		}
-	}
 
-	if (actual_received == -1)
-	{
-		fprintf(stderr, "Failed to receive data packet.\n");
+		if (!quietMode)
+			fprintf(stdout, "File transfer complete.\n");
+
+		md5Hash = util_md5_checksum(data_to_receive, actual_received);
+
+		if (md5Hash == NULL)
+		{
+			fprintf(stderr, "Failed to calculate MD5 checksum.\n");
+			free(data_to_receive);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+			fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
+
+		free(md5Hash);
+
+		// Calculate transfer time here and whatever...
+
+		transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
+
+		char statics[STNC_PROTO_MAX_SIZE] = { 0 };
+
+		char *transferName = NULL;
+
+		switch(protocol)
+		{
+			case PROTOCOL_IPV4:
+			{
+				if (param == PARAM_TCP)
+					transferName = "IPv4 TCP:";
+
+				else
+					transferName = "IPv4 UDP:";
+
+				break;
+			}
+
+			case PROTOCOL_IPV6:
+			{
+				if (param == PARAM_TCP)
+					transferName = "IPv6 TCP:";
+
+				else
+					transferName = "IPv6 UDP:";
+
+				break;
+			}
+
+			case PROTOCOL_UNIX:
+			{
+				if (param == PARAM_STREAM)
+					transferName = "UDS Stream:";
+
+				else
+					transferName = "UDS Datagram:";
+
+				break;
+			}
+
+			case PROTOCOL_MMAP:
+			{
+				transferName = "Memory Mapped File:";
+				break;
+			}
+
+			case PROTOCOL_PIPE:
+			{
+				transferName = "Pipe:";
+				break;
+			}
+
+			default:
+			{
+				transferName = "UNKNOWN";
+				break;
+			}
+		}
+
+		snprintf(statics, (sizeof(statics) - 1), "Total data received: %u KB (%0.2f%%)\nTransfer time: %0.3lf seconds (%0.3lf ms)\nTransfer rate: %0.3lf KB/s (%0.3lf MB/s)", 
+											(actual_received / 1024), (((float)actual_received / (float)fileSize) * 100), transferTime, (transferTime * 1000), (((double)actual_received / 1024) / transferTime), ((double)actual_received / (1024 * 1024)) / transferTime);
+
+		if (!quietMode)
+			fprintf(stdout, "%s\n%s", transferName, statics);
+		
+		else
+			fprintf(stdout, "%s\n%s\n", transferName, statics);
+
+		stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(statics) + 1), (uint8_t *)statics);
+
+		if (!quietMode)
+			fprintf(stdout, "Sending statistics packet...\n");
+
+		if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
+		{
+			fprintf(stderr, "Failed to send statistics packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+			fprintf(stdout, "Statistics packet sent.\n"
+							"Waiting for end packet...\n");
+
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_END)
+		{
+			fprintf(stderr, "Failed to receive end packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		if (!quietMode)
+		{
+			fprintf(stdout, "End packet received.\n");
+			fprintf(stdout, "Closing connection and cleaning up memory...\n");
+		}
+
+		close(chatSocket);
+
 		free(data_to_receive);
-		close(chatSocket);
-		return EXIT_FAILURE;
+
+		if (!quietMode)
+			fprintf(stdout, "Memory cleanup complete.\n"
+							"Connection closed.\n"
+							"Waiting for connections...\n");
 	}
 
-	gettimeofday(&end, NULL);
-
-	if (!quietMode)
-		fprintf(stdout, "File transfer complete.\n");
-
-	md5Hash = util_md5_checksum(data_to_receive, actual_received);
-
-	if (md5Hash == NULL)
-	{
-		fprintf(stderr, "Failed to calculate MD5 checksum.\n");
-		free(data_to_receive);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
-
-	free(md5Hash);
-
-	// Calculate transfer time here and whatever...
-
-	transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
-
-	char statics[STNC_PROTO_MAX_SIZE] = { 0 };
-
-	sprintf(statics, "Total data received: %u KB (%0.2f%%).\n"
-					"Transfer time: %0.3lf seconds\n"
-					"Transfer rate: %0.3lf KB/s\n", 
-					(actual_received / 1024), (((float)actual_received / (float)fileSize) * 100), transferTime, ((double)actual_received / 1024) / transferTime);
-
-	fprintf(stdout, "%s", statics);
-
-	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(statics) + 1), (uint8_t *)statics);
-
-	if (!quietMode)
-		fprintf(stdout, "Sending statistics packet...\n");
-
-	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
-	{
-		fprintf(stderr, "Failed to send statistics packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "Statistics packet sent.\n"
-						"Waiting for end packet...\n");
-
-	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_END)
-	{
-		fprintf(stderr, "Failed to receive end packet.\n");
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-	{
-		fprintf(stdout, "End packet received.\n");
-		fprintf(stdout, "Closing connection and cleaning up memory...\n");
-	}
-
-	close(chatSocket);
 	close(serverSocket);
-
-	free(data_to_receive);
-
-	if (!quietMode)
-		fprintf(stdout, "Memory cleanup complete.\n"
-						"Connection closed.\n"
-						"Exiting...\n");
-
 
 	return EXIT_SUCCESS;
 }
@@ -425,6 +486,8 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		fds[1].fd = clientSocket;
 		fds[1].events = POLLIN;
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -529,6 +592,8 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		if (!quietMode)
 			fprintf(stdout, "ACK sent, waiting for client to start sending data on port %u...\n", server_port);
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -609,6 +674,8 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 		close(serverSocket);
 	}
+
+	gettimeofday(&end, NULL);
 
 	if (bytesReceived == filesize)
 	{
@@ -759,6 +826,8 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		fds[1].fd = clientSocket;
 		fds[1].events = POLLIN;
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -863,6 +932,8 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		if (!quietMode)
 			fprintf(stdout, "ACK sent, waiting for client to start sending data on port %u...\n", server_port);
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -943,6 +1014,8 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 		close(serverSocket);
 	}
+
+	gettimeofday(&end, NULL);
 
 	if (bytesReceived == filesize)
 	{
@@ -1066,6 +1139,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		fds[1].fd = clientSocket;
 		fds[1].events = POLLIN;
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -1170,6 +1245,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		if (!quietMode)
 			fprintf(stdout, "ACK sent, waiting for client to start sending data on path %s...\n", server_uds_path);
 
+		gettimeofday(&start, NULL);
+
 		while (bytesReceived < filesize)
 		{
 			int32_t ret = poll(fds, 2, STNC_POLL_TIMEOUT);
@@ -1251,6 +1328,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		close(serverSocket);
 	}
 
+	gettimeofday(&end, NULL);
+
 	if (bytesReceived == filesize)
 	{
 		// Syncronization with the sender.
@@ -1314,6 +1393,8 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 	fds[1].fd = fd;
 	fds[1].events = POLLIN;
+
+	gettimeofday(&start, NULL);
 
 	while (bytesReceived < filesize)
 	{
@@ -1391,6 +1472,8 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		return -1;
 	}
 
+	gettimeofday(&end, NULL);
+
 	fclose(fp);
 
 	if (bytesReceived == filesize)
@@ -1455,6 +1538,8 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 	fds[1].fd = fd;
 	fds[1].events = POLLIN;
+
+	gettimeofday(&start, NULL);
 
 	while (bytesReceived < filesize)
 	{
@@ -1526,6 +1611,8 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			bytesReceived += bytesToReceived;
 		}
 	}
+
+	gettimeofday(&end, NULL);
 
 	close(fd);
 
