@@ -234,7 +234,9 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 	transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
 
+	fprintf(stdout, "Total data received: %u KB (%0.2f%%).\n", (actual_received / 1024), (((float)actual_received / (float)fileSize) * 100));
 	fprintf(stdout, "Transfer time: %lf seconds\n", transferTime);
+	fprintf(stdout, "Transfer rate: %lf KB/s\n", ((double)actual_received / 1024) / transferTime);
 
 	char statics[] = "Future statistics here.";
 
@@ -584,10 +586,7 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 	}
 
 	if (!quietMode)
-	{
 		fprintf(stdout, "Received %u bytes, expected %u bytes.\n", bytesReceived, filesize);
-		fprintf(stdout, "Total data received: %u KB (%0.2f%%).\n", (bytesReceived / 1024), (((float)bytesReceived / (float)filesize) * 100));
-	}
 
 	return bytesReceived;
 }
@@ -912,10 +911,7 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 	}
 
 	if (!quietMode)
-	{
 		fprintf(stdout, "Received %u bytes, expected %u bytes.\n", bytesReceived, filesize);
-		fprintf(stdout, "Total data received: %u KB (%0.2f%%).\n", (bytesReceived / 1024), (((float)bytesReceived / (float)filesize) * 100));
-	}
 
 	return bytesReceived;
 }

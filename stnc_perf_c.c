@@ -31,11 +31,13 @@
 #include <sys/un.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include "stnc.h"
 
 int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, char *transferParam, bool quietMode) {
 	struct sockaddr_in serverAddress;
+	struct timeval start, end;
 
 	uint8_t buffer[STNC_PROTO_MAX_SIZE] = { 0 };
 	uint8_t *data_to_send = NULL;
@@ -172,10 +174,13 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "ACK packet received.\n"
-						"Starting file transfer...\n");
+		fprintf(stdout, "ACK packet received.\n");
+
+	fprintf(stdout, "Starting transfer...\n");
 
 	int32_t ret = 0;
+
+	gettimeofday(&start, NULL);
 	
 	switch(protocol)
 	{
@@ -211,11 +216,15 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		return EXIT_FAILURE;
 	}
 
-	if (!quietMode)
-	{
-		fprintf(stdout, "File transfer complete.\n"
-						"Sent total of %d bytes (%d KB, %d MB).\n", ret, (ret / 1024), (ret / (1024 * 1024)));
-	}
+	gettimeofday(&end, NULL);
+
+	fprintf(stdout, "File transfer complete.\n"
+					"Sent total of %d bytes (%d KB, %d MB).\n", ret, (ret / 1024), (ret / (1024 * 1024)));
+
+	double transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
+
+	fprintf(stdout, "Transfer time: %.2f seconds.\n"
+					"Transfer speed: %.2f KB/s.\n", transferTime, ((double)ret / 1024) / transferTime);
 
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
@@ -246,8 +255,6 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	if (!quietMode)
 		fprintf(stdout, "Statistics packet received.\n");
-
-	stnc_print_packet_payload((stnc_packet*)buffer);
 
 	stnc_prepare_packet(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
 
