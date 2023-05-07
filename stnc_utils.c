@@ -146,8 +146,7 @@ int32_t stnc_print_packet_data(stnc_packet *packet) {
 	
 	if (packet->type == MSGT_DATA && packet->size > 0)
 	{
-		uint8_t *ptr = (uint8_t *)packet;
-		ptr += sizeof(stnc_packet);
+		uint8_t *ptr = (uint8_t *)packet + sizeof(stnc_packet);
 
 		fprintf(stdout, "Data: ");
 
@@ -180,7 +179,7 @@ int32_t stnc_print_packet_payload(stnc_packet *packet) {
 		return 1;
 	}
 
-	uint8_t *ptr = (uint8_t *)packet;
+	uint8_t *ptr = (uint8_t *)packet + sizeof(stnc_packet);
 
 	for (uint32_t i = 0; i < packet->size; i++)
 		fputc(*(ptr + i), stdout);

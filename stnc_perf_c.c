@@ -87,8 +87,6 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	fprintf(stdout, "MD5 checksum: %s\n", md5);
 
-	free(md5);
-
 	memset(&serverAddress, 0, sizeof(serverAddress));
 
 	serverAddress.sin_family = AF_INET;
@@ -132,7 +130,33 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "Initilization packet sent.\n");
+		fprintf(stdout, "Initilization packet sent.\n"
+						"Waiting for ACK packet...\n");
+
+	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+	{
+		fprintf(stderr, "Failed to receive ACK packet.\n");
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "ACK packet received.\n"
+						"Sending data packet (MD5 hash)...\n");
+
+	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(md5) + 1), (uint8_t*)md5);
+
+	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Failed to send data packet.\n");
+			
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	if (!quietMode)
+		fprintf(stdout, "Data packet sent.\n");
 
 	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 	{
@@ -276,26 +300,12 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	stnc_print_packet_payload((stnc_packet *)buffer);
 
-	stnc_prepare_packet(buffer, MSGT_END, protocol, param, ERRC_SUCCESS, 0, NULL);
-
 	if (!quietMode)
-		fprintf(stdout, "Sending end packet...\n");
-
-	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
-	{
-		if (!quietMode)
-			fprintf(stderr, "Failed to send end packet.\n");
-
-		close(chatSocket);
-		return EXIT_FAILURE;
-	}
-
-	if (!quietMode)
-		fprintf(stdout, "End packet sent.\n"
-						"Closing connection and cleaning up memory...\n");
+		fprintf(stdout, "Closing connection and cleaning up memory...\n");
 
 	close(chatSocket);
 	free(data_to_send);
+	free(md5);
 
 	if (!quietMode)
 		fprintf(stdout, "Memory cleanup complete.\n"

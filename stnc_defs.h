@@ -60,6 +60,13 @@
 #define CLIENT_QUIET_MODE false
 
 /*
+ * @brief Makes the server ignore the stop command, in performance mode.
+ * @note The value can be either true or false (0 or 1).
+ * @note The default value is 1 (true).
+*/
+#define STNC_IGNORE_STOP 1
+
+/*
  * @breif Defines the minimum port number that can be used by the STNC program.
  * @note The default value is 1024.
  * @note The maximum port number is 65535.
@@ -81,11 +88,12 @@
 
 /*
  * @brief Defines the chunk size of the generated file, in performance mode, for the UDP protocol.
- * @note The default value is 1024 bytes.
+ * @note The default value is 65507 bytes.
  * @note UDP is a connectionless protocol, so the chunk size must be smaller than the MTU (Maximum Transmission Unit).
- * @note The MTU is 1500 bytes for Ethernet, and 576 bytes for IPv4.
+ * @note The MTU is 1500 bytes for Ethernet, 576 bytes for IPv4 and 1280 bytes for IPv6.
+ * @note UDP payload can be up to 65,507 bytes.
 */
-#define CHUNK_SIZE_UDP 1024
+#define CHUNK_SIZE_UDP 65507
 
 /*
  * @brief Defines the File size for the performance mode.

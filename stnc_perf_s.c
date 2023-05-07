@@ -147,7 +147,85 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		}
 
 		if (!quietMode)
-			fprintf(stdout, "Memory allocated.\n");
+			fprintf(stdout, "Memory allocated.\n"
+							"Sending ACK packet...\n");
+
+		stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
+		stnc_send_tcp_data(chatSocket, buffer, quietMode);
+
+		if (!quietMode)
+			fprintf(stdout, "ACK packet sent.\n"
+							"Waiting for data packet...\n");
+
+		char md5HashExpected[33] = { 0 };
+
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+		{
+			fprintf(stderr, "Failed to receive data packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
+
+		memcpy(md5HashExpected, ((char*)buffer + sizeof(stnc_packet)), 32);
+
+		char *transferName = NULL;
+
+		switch(protocol)
+		{
+			case PROTOCOL_IPV4:
+			{
+				if (param == PARAM_TCP)
+					transferName = "IPv4 TCP:";
+
+				else
+					transferName = "IPv4 UDP:";
+
+				break;
+			}
+
+			case PROTOCOL_IPV6:
+			{
+				if (param == PARAM_TCP)
+					transferName = "IPv6 TCP:";
+
+				else
+					transferName = "IPv6 UDP:";
+
+				break;
+			}
+
+			case PROTOCOL_UNIX:
+			{
+				if (param == PARAM_STREAM)
+					transferName = "UDS Stream:";
+
+				else
+					transferName = "UDS Datagram:";
+
+				break;
+			}
+
+			case PROTOCOL_MMAP:
+			{
+				transferName = "Memory Mapped File:";
+				break;
+			}
+
+			case PROTOCOL_PIPE:
+			{
+				transferName = "Pipe:";
+				break;
+			}
+
+			default:
+			{
+				transferName = "UNKNOWN";
+				break;
+			}
+		}
+
+		fprintf(stdout, "%s\n"
+						"Expected MD5 hash of the file: %s\n",transferName, md5HashExpected);
 
 		if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		{
@@ -248,81 +326,28 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			return EXIT_FAILURE;
 		}
 
-		if (!quietMode)
-			fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
+		fprintf(stdout, "MD5 checksum of received data: %s\n", md5Hash);
+
+		if (strcmp(md5Hash, md5HashExpected) != 0)
+			fprintf(stdout, "Warning: MD5 checksum mismatch.\n");
+
+		else
+			fprintf(stdout, "MD5 checksum matches.\n");
 
 		free(md5Hash);
-
-		// Calculate transfer time here and whatever...
 
 		transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
 
 		char statics[STNC_PROTO_MAX_SIZE] = { 0 };
 
-		char *transferName = NULL;
-
-		switch(protocol)
-		{
-			case PROTOCOL_IPV4:
-			{
-				if (param == PARAM_TCP)
-					transferName = "IPv4 TCP:";
-
-				else
-					transferName = "IPv4 UDP:";
-
-				break;
-			}
-
-			case PROTOCOL_IPV6:
-			{
-				if (param == PARAM_TCP)
-					transferName = "IPv6 TCP:";
-
-				else
-					transferName = "IPv6 UDP:";
-
-				break;
-			}
-
-			case PROTOCOL_UNIX:
-			{
-				if (param == PARAM_STREAM)
-					transferName = "UDS Stream:";
-
-				else
-					transferName = "UDS Datagram:";
-
-				break;
-			}
-
-			case PROTOCOL_MMAP:
-			{
-				transferName = "Memory Mapped File:";
-				break;
-			}
-
-			case PROTOCOL_PIPE:
-			{
-				transferName = "Pipe:";
-				break;
-			}
-
-			default:
-			{
-				transferName = "UNKNOWN";
-				break;
-			}
-		}
-
-		snprintf(statics, (sizeof(statics) - 1), "Total data received: %u KB (%0.2f%%)\nTransfer time: %0.3lf seconds (%0.3lf ms)\nTransfer rate: %0.3lf KB/s (%0.3lf MB/s)\n)", 
+		snprintf(statics, (sizeof(statics) - 1), "Total data received: %u KB (%0.2f%%)\nTransfer time: %0.3lf seconds (%0.3lf ms)\nTransfer rate: %0.3lf KB/s (%0.3lf MB/s)\n", 
 											(actual_received / 1024), (((float)actual_received / (float)fileSize) * 100), transferTime, (transferTime * 1000), (((double)actual_received / 1024) / transferTime), ((double)actual_received / (1024 * 1024)) / transferTime);
 
 		if (!quietMode)
-			fprintf(stdout, "%s\n%s", transferName, statics);
+			fprintf(stdout, "%s", statics);
 		
 		else
-			fprintf(stdout, "%s\n%s\n", transferName, statics);
+			fprintf(stdout, "%s\n", statics);
 
 		stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(statics) + 1), (uint8_t *)statics);
 
@@ -337,19 +362,8 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		}
 
 		if (!quietMode)
-			fprintf(stdout, "Statistics packet sent.\n"
-							"Waiting for end packet...\n");
-
-		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_END)
 		{
-			fprintf(stderr, "Failed to receive end packet.\n");
-			close(chatSocket);
-			return EXIT_FAILURE;
-		}
-
-		if (!quietMode)
-		{
-			fprintf(stdout, "End packet received.\n");
+			fprintf(stdout, "Statistics packet sent.\n");
 			fprintf(stdout, "Closing connection and cleaning up memory...\n");
 		}
 
@@ -511,6 +525,9 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -526,9 +543,6 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				if (!quietMode)
-					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
@@ -541,7 +555,13 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					return -1;
 				}
 
-				break;
+				else if (!STNC_IGNORE_STOP)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+					break;
+				}
 			}
 
 			else if (fds[1].revents & POLLIN)
@@ -551,6 +571,8 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				int32_t bytes = 0;
 
 				bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+				gettimeofday(&end, NULL);
 
 				if (bytes <= 0)
 				{
@@ -617,6 +639,9 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+					
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -635,14 +660,30 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				if (fds[0].revents & POLLIN)
 				{
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-
-					if (!quietMode)
+					
+					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-						stnc_print_packet_data((stnc_packet *)buffer);
+						if (!quietMode)
+							fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+
+						close(serverSocket);
+
+						return -1;
 					}
 
-					break;
+					else if (!STNC_IGNORE_STOP)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+						break;
+					}
+
+					else
+					{
+						if (!quietMode)
+							fprintf(stdout, "Sender finished sending data. Continue receiving data.\n");
+					}
 				}
 
 				if (fds[1].revents & POLLIN)
@@ -652,6 +693,8 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					int32_t bytes = 0;
 
 					bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
+
+					gettimeofday(&end, NULL);
 
 					if (bytes <= 0)
 					{
@@ -675,14 +718,11 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		close(serverSocket);
 	}
 
-	gettimeofday(&end, NULL);
-
-	if (bytesReceived == filesize)
+	if (bytesReceived == filesize && !STNC_IGNORE_STOP)
 	{
 		// Syncronization with the sender.
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
 	}
-
 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes, expected %u bytes.\n", bytesReceived, filesize);
@@ -851,6 +891,9 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+					
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -866,9 +909,6 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				if (!quietMode)
-					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
@@ -881,7 +921,13 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					return -1;
 				}
 
-				break;
+				else if (!STNC_IGNORE_STOP)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+					break;
+				}
 			}
 
 			else if (fds[1].revents & POLLIN)
@@ -891,6 +937,8 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				int32_t bytes = 0;
 
 				bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+				gettimeofday(&end, NULL);
 
 				if (bytes <= 0)
 				{
@@ -957,6 +1005,9 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+					
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -975,14 +1026,24 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				if (fds[0].revents & POLLIN)
 				{
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-
-					if (!quietMode)
+					
+					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-						stnc_print_packet_data((stnc_packet *)buffer);
+						if (!quietMode)
+							fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+						
+						close(serverSocket);
+
+						return -1;
 					}
 
-					break;
+					else if (!STNC_IGNORE_STOP)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+						break;
+					}
 				}
 
 				if (fds[1].revents & POLLIN)
@@ -992,6 +1053,8 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					int32_t bytes = 0;
 
 					bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &len);
+
+					gettimeofday(&end, NULL);
 
 					if (bytes <= 0)
 					{
@@ -1015,9 +1078,7 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		close(serverSocket);
 	}
 
-	gettimeofday(&end, NULL);
-
-	if (bytesReceived == filesize)
+	if (bytesReceived == filesize && !STNC_IGNORE_STOP)
 	{
 		// Syncronization with the sender.
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
@@ -1164,6 +1225,9 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+				
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -1179,9 +1243,6 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				if (!quietMode)
-					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-
 				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
@@ -1194,7 +1255,13 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					return -1;
 				}
 
-				break;
+				else if (!STNC_IGNORE_STOP)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+					break;
+				}
 			}
 
 			else if (fds[1].revents & POLLIN)
@@ -1204,6 +1271,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				int32_t bytes = 0;
 
 				bytes = recv(clientSocket, data + bytesReceived, bytesToReceive, 0);
+
+				gettimeofday(&end, NULL);
 
 				if (bytes <= 0)
 				{
@@ -1270,6 +1339,9 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
+				if (STNC_IGNORE_STOP)
+					break;
+				
 				if (!quietMode)
 					fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -1288,14 +1360,24 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				if (fds[0].revents & POLLIN)
 				{
 					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-
-					if (!quietMode)
+					
+					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
-						fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-						stnc_print_packet_data((stnc_packet *)buffer);
+						if (!quietMode)
+							fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+						
+						close(serverSocket);
+
+						return -1;
 					}
 
-					break;
+					else if (!STNC_IGNORE_STOP)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+						break;
+					}
 				}
 
 				if (fds[1].revents & POLLIN)
@@ -1305,6 +1387,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					int32_t bytes = 0;
 
 					bytes = recvfrom(serverSocket, data + bytesReceived, bytesToReceive, 0, (struct sockaddr *)&clientAddress, &clientAddressLength);
+
+					gettimeofday(&end, NULL);
 
 					if (bytes <= 0)
 					{
@@ -1328,9 +1412,7 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		close(serverSocket);
 	}
 
-	gettimeofday(&end, NULL);
-
-	if (bytesReceived == filesize)
+	if (bytesReceived == filesize && !STNC_IGNORE_STOP)
 	{
 		// Syncronization with the sender.
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
@@ -1419,6 +1501,9 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
+			if (STNC_IGNORE_STOP)
+					break;
+			
 			if (!quietMode)
 				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -1435,14 +1520,26 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		if (fds[0].revents & POLLIN)
 		{
 			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-			
-			if (!quietMode)
+				
+			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 			{
-				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-				stnc_print_packet_data((stnc_packet *)buffer);
+				if (!quietMode)
+					fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+					
+				munmap(dataToReceive, sizeof(uint32_t) + filesize);
+				fclose(fp);
+				remove(file_name);
+
+				return -1;
 			}
 
-			break;
+			else if (!STNC_IGNORE_STOP)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+				break;
+			}
 		}
 
 		if (fds[1].revents & POLLIN)
@@ -1450,6 +1547,8 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 			uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
 
 			memcpy(data, dataToReceive, bytesToReceived);
+
+			gettimeofday(&end, NULL);
 
 			data += bytesToReceived;
 			dataToReceive_tmp += bytesToReceived;
@@ -1472,11 +1571,9 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 		return -1;
 	}
 
-	gettimeofday(&end, NULL);
-
 	fclose(fp);
 
-	if (bytesReceived == filesize)
+	if (bytesReceived == filesize && !STNC_IGNORE_STOP)
 	{
 		// Syncronization with the sender.
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);
@@ -1564,6 +1661,9 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
+			if (STNC_IGNORE_STOP)
+					break;
+			
 			if (!quietMode)
 				fprintf(stderr, "Poll timeout occured. Abort action immediately.\n");
 
@@ -1580,14 +1680,25 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 		if (fds[0].revents & POLLIN)
 		{
 			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
-			
-			if (!quietMode)
+				
+			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 			{
-				fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
-				stnc_print_packet_data((stnc_packet *)buffer);
+				if (!quietMode)
+					fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+					
+				close(fd);
+				remove(file_name);
+
+				return -1;
 			}
 
-			break;
+			else if (!STNC_IGNORE_STOP)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Sender finished sending data. Stop receiving data.\n");
+
+				break;
+			}
 		}
 
 		if (fds[1].revents & POLLIN)
@@ -1608,15 +1719,15 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
+			gettimeofday(&end, NULL);
+
 			bytesReceived += bytesToReceived;
 		}
 	}
 
-	gettimeofday(&end, NULL);
-
 	close(fd);
 
-	if (bytesReceived == filesize)
+	if (bytesReceived == filesize && !STNC_IGNORE_STOP)
 	{
 		// Syncronization with the sender.
 		stnc_receive_tcp_data(chatsocket, buffer, quietMode);

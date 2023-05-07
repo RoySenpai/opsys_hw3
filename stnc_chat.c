@@ -73,7 +73,7 @@ int stnc_client_chat(char *ip, char *port) {
 	pfds[1].fd = sockfd;
 	pfds[1].events = POLLIN;
 
-	while (1)
+	while (true)
 	{
 		int num_events = poll(pfds, 2, -1);
 
@@ -187,87 +187,88 @@ int stnc_server_chat(char *port) {
 
 	fprintf(stdout, "Waiting for incoming connection...\n");
 
-	clientfd = accept(sockfd, (struct sockaddr *)&client, (socklen_t *)&clientLen);
-
-	if (clientfd < 0)
+	while (true)
 	{
-		perror("accept");
-		return EXIT_FAILURE;
-	}
+		clientfd = accept(sockfd, (struct sockaddr *)&client, (socklen_t *)&clientLen);
 
-	// Close the listening socket, as we don't need it anymore (we now act as a client).
-	close(sockfd);
-
-	fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-
-	struct pollfd pfds[2];
-
-	pfds[0].fd = STDIN_FILENO;
-	pfds[0].events = POLLIN;
-
-	pfds[1].fd = clientfd;
-	pfds[1].events = POLLIN;
-
-	while (1)
-	{
-		int num_events = poll(pfds, 2, -1);
-
-		if (num_events < 0)
+		if (clientfd < 0)
 		{
-			perror("poll");
-			close(clientfd);
+			perror("accept");
 			return EXIT_FAILURE;
 		}
 
-		else
+		fprintf(stdout, "Connection established with %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+
+		struct pollfd pfds[2];
+
+		pfds[0].fd = STDIN_FILENO;
+		pfds[0].events = POLLIN;
+
+		pfds[1].fd = clientfd;
+		pfds[1].events = POLLIN;
+
+		while (true)
 		{
-			if (pfds[1].revents & POLLIN)
+			int num_events = poll(pfds, 2, -1);
+
+			if (num_events < 0)
 			{
-				readBytes = recv(clientfd, buffer, MAX_MESSAGE_SIZE, 0);
-
-				if (readBytes < 0)
-				{
-					perror("recv");
-					return EXIT_FAILURE;
-				}
-
-				else if (readBytes == 0)
-				{
-					fprintf(stdout, "Connection closed by the peer.\n");
-					break;
-				}
-
-				fprintf(stdout, "Peer: %s\n", buffer);
-
-				memset(buffer, 0, MAX_MESSAGE_SIZE);
+				perror("poll");
+				close(clientfd);
+				close(sockfd);
+				return EXIT_FAILURE;
 			}
 
-			if (pfds[0].revents & POLLIN)
+			else
 			{
-				fgets(buffer, MAX_MESSAGE_SIZE, stdin);
-
-				buffer[strlen(buffer) - 1] = '\0';
-
-				writeBytes = send(clientfd, buffer, strlen(buffer), 0);
-
-				if (writeBytes < 0)
-				{
-					perror("send");
-					return EXIT_FAILURE;
-				}
-
-				else if (writeBytes == 0)
-				{
-					fprintf(stdout, "Connection closed by the peer.\n");
-					break;
-				}
-
 				memset(buffer, 0, MAX_MESSAGE_SIZE);
+
+				if (pfds[1].revents & POLLIN)
+				{
+					readBytes = recv(clientfd, buffer, MAX_MESSAGE_SIZE, 0);
+
+					if (readBytes < 0)
+					{
+						perror("recv");
+						return EXIT_FAILURE;
+					}
+
+					else if (readBytes == 0)
+					{
+						fprintf(stdout, "Connection closed by the peer.\n");
+						break;
+					}
+
+					fprintf(stdout, "Peer: %s\n", buffer);
+				}
+
+				if (pfds[0].revents & POLLIN)
+				{
+					fgets(buffer, MAX_MESSAGE_SIZE, stdin);
+
+					buffer[strlen(buffer) - 1] = '\0';
+
+					writeBytes = send(clientfd, buffer, strlen(buffer), 0);
+
+					if (writeBytes < 0)
+					{
+						perror("send");
+						return EXIT_FAILURE;
+					}
+
+					else if (writeBytes == 0)
+					{
+						fprintf(stdout, "Connection closed by the peer.\n");
+						break;
+					}
+				}
 			}
 		}
+
+		close(clientfd);
 	}
 
-	close(clientfd);
+	close(sockfd);
 
 	return EXIT_SUCCESS;
 }
