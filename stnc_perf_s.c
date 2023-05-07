@@ -1466,6 +1466,8 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 	uint8_t *dataToReceive_tmp = dataToReceive + sizeof(uint32_t);
 
+	uint32_t *bytesSendFromMemory = (uint32_t *)dataToReceive;
+
 	uint32_t bytesReceived = 0;
 
 	struct pollfd fds[2];
@@ -1544,9 +1546,9 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 		if (fds[1].revents & POLLIN)
 		{
-			uint32_t bytesToReceived = ((filesize - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesReceived);
+			uint32_t bytesToReceived = ((*bytesSendFromMemory - bytesReceived) > CHUNK_SIZE) ? CHUNK_SIZE:(*bytesSendFromMemory - bytesReceived);
 
-			memcpy(data, dataToReceive, bytesToReceived);
+			memcpy(data, dataToReceive_tmp, bytesToReceived);
 
 			gettimeofday(&end, NULL);
 

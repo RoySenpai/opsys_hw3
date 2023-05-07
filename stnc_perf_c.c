@@ -892,7 +892,7 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 	}
 
 	uint8_t *dataPtr = data + sizeof(uint32_t);
-	uint32_t *bytesWritten = (uint32_t *)dataPtr;
+	uint32_t *bytesWritten = (uint32_t *)data;
 	uint32_t bytesSent = 0;
 
 	*bytesWritten = 0;
