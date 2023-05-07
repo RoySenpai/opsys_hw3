@@ -129,7 +129,7 @@
 /*
  * @brief Defines the type of the message for the performace test.
 */
-typedef enum __attribute__((__packed__)) _stnc_message_type {
+typedef enum __attribute__((__packed__)) _STNC_MESSAGE_TYPE {
 	/* 
 	 * @brief Invalid - invalid message type.
 	 * @note This message is used to indicate an invalid message type.
@@ -156,14 +156,7 @@ typedef enum __attribute__((__packed__)) _stnc_message_type {
 	 * @note This message indicates that data is being sent (statistics, file name, address, etc.).
 	 * @note Errors are sent as data messages.
 	*/
-	MSGT_DATA,
-
-	/* 
-	 * @brief End - communication ended. 
-	 * @note This message is sent only once, at the end of the communication.
-	 * @note This message is sent by the client only (the server will close the connection upon receiving this message).
-	*/
-	MSGT_END
+	MSGT_DATA
 } stnc_message_type;
 
 /*
@@ -173,7 +166,7 @@ typedef enum __attribute__((__packed__)) _stnc_message_type {
  * @note For stream and datagram sockets, the protocol is PROTOCOL_UNIX only.
  * @note PROTOCOL_NONE is used for error.
 */
-typedef enum __attribute__((__packed__)) _stnc_transfer_protocol {
+typedef enum __attribute__((__packed__)) _STNC_TRANSFER_PROTOCOL {
 	/* 
 	 * @brief No protocol - Invalid protocol.
 	 * @note This indicates an error by providing an invalid protocol, in the client side.
@@ -219,7 +212,7 @@ typedef enum __attribute__((__packed__)) _stnc_transfer_protocol {
  * @note This parameter is used to indicate the type of the transfer.
  * @note For mmap and pipe, the parameter is always PARAM_NONE.
 */
-typedef enum __attribute__((__packed__)) _stnc_transfer_param {
+typedef enum __attribute__((__packed__)) _STNC_TRANSFER_PARAM {
 	/* 
 	 * @brief No parameter - Invalid parameter.
 	 * @note This indicates an error by providing an invalid parameter, in the client side, if the protocol isn't mmap or pipe.
@@ -268,7 +261,7 @@ typedef enum __attribute__((__packed__)) _stnc_transfer_param {
  * @note This error code is used to indicate the type of the error.
  * @note The error code also provides a short description of the error, as a string payload in the message.
 */
-typedef enum __attribute__((__packed__)) _stnc_error_code {
+typedef enum __attribute__((__packed__)) _STNC_ERROR_CODE {
 
 	/* 
 	 * @brief Invalid - invalid error code.

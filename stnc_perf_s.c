@@ -224,8 +224,13 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			}
 		}
 
-		fprintf(stdout, "%s\n"
-						"Expected MD5 hash of the file: %s\n",transferName, md5HashExpected);
+		if (!quietMode)
+			fprintf(stdout, "Data packet received.\n");
+
+		else
+			fprintf(stdout, "%s\n", transferName);
+
+		fprintf(stdout, "Expected MD5 hash of the file: %s\n", md5HashExpected);
 
 		if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		{
@@ -280,7 +285,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 			case PROTOCOL_MMAP:
 			{
-				// ACK placeholder (we actually need to receive an ACK packet, but the client also expects an ACK packet)/
+				// ACK placeholder (we actually need to receive an ACK packet, but the client also expects an ACK packet).
 				stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_MMAP, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
 				stnc_send_tcp_data(chatSocket, buffer, quietMode);
 
