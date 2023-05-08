@@ -68,7 +68,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	if (protocol == PROTOCOL_MMAP || protocol == PROTOCOL_PIPE)
 		param = PARAM_FILE;
 
-	data_to_send = util_generate_random_data(FILE_SIZE);
+	data_to_send = util_generate_random_data(FILE_SIZE, quietMode);
 
 	if (data_to_send == NULL)
 	{
@@ -113,14 +113,15 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "Connected to server %s:%d.\n", ip, portNumber);
+	if (!quietMode)
+		fprintf(stdout, "Connected to server %s:%d.\n", ip, portNumber);
 
 	stnc_prepare_packet(buffer, MSGT_INIT, protocol, param, ERRC_SUCCESS, FILE_SIZE, NULL);
 
 	if (!quietMode)
 		fprintf(stdout, "Sending initilization packet (file size, protocol, param)...\n");
 
-	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
 	{
 		if (!quietMode)
 			fprintf(stderr, "Failed to send initilization packet.\n");
@@ -133,7 +134,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		fprintf(stdout, "Initilization packet sent.\n"
 						"Waiting for ACK packet...\n");
 
-	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
 		fprintf(stderr, "Failed to receive ACK packet.\n");
 		close(chatSocket);
@@ -146,7 +147,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	stnc_prepare_packet(buffer, MSGT_DATA, protocol, param, ERRC_SUCCESS, (strlen(md5) + 1), (uint8_t*)md5);
 
-	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
 	{
 		if (!quietMode)
 			fprintf(stderr, "Failed to send data packet.\n");
@@ -163,7 +164,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		if (!quietMode)
 			fprintf(stdout, "Waiting for ACK packet...\n");
 
-		if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 		{
 			fprintf(stderr, "Failed to receive ACK packet.\n");
 			close(chatSocket);
@@ -178,7 +179,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		if (!quietMode)
 			fprintf(stdout, "Sending data packet (file name)...\n");
 
-		if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+		if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
 		{
 			if (!quietMode)
 				fprintf(stderr, "Failed to send data packet.\n");
@@ -194,7 +195,7 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	if (!quietMode)
 			fprintf(stdout, "Waiting for ACK packet...\n");
 
-	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
 	{
 		fprintf(stderr, "Failed to receive ACK packet.\n");
 		close(chatSocket);
@@ -202,9 +203,8 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 	}
 
 	if (!quietMode)
-		fprintf(stdout, "ACK packet received.\n");
-
-	fprintf(stdout, "Starting transfer...\n");
+		fprintf(stdout, "ACK packet received.\n"
+						"Starting transfer...\n");
 
 	int32_t ret = 0;
 	
@@ -260,20 +260,27 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		return EXIT_FAILURE;
 	}
 
-	fprintf(stdout, "File transfer complete.\n"
-					"Sent total of %d bytes (%d KB, %d MB).\n", ret, (ret / 1024), (ret / (1024 * 1024)));
+	if (!quietMode)
+		fprintf(stdout, "File transfer complete.\n");
 
 	double transferTime = (double)(endC.tv_sec - startC.tv_sec) + ((double)(endC.tv_usec - startC.tv_usec) / 1000000);
+	
+	if (quietMode)
+		fprintf(stdout, "\n");
+	
+	fprintf(stdout, "Statistics data for this transfer (client side):\n");
+	fprintf(stdout, "Sent total of %d bytes (%d KB, %d MB).\n", ret, (ret / 1024), (ret / (1024 * 1024)));
 
 	fprintf(stdout, "Transfer time: %0.3lf seconds (%0.3lf ms).\n"
-					"Transfer speed: %0.3lf KB/s (%0.3lf MB/s).\n", transferTime, transferTime * 1000, ((double)ret / 1024) / transferTime, ((double)ret / (1024 * 1024)) / transferTime);
+					"Transfer speed: %0.3lf KB/s (%0.3lf MB/s).\n", 
+					transferTime, transferTime * 1000, ((double)ret / 1024) / transferTime, ((double)ret / (1024 * 1024)) / transferTime);
 
 	stnc_prepare_packet(buffer, MSGT_ACK, protocol, param, ERRC_SUCCESS, 0, NULL);
 
 	if (!quietMode)
 		fprintf(stdout, "Sending ACK packet...\n");
 
-	if (stnc_send_tcp_data(chatSocket, buffer, false) == -1)
+	if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
 	{
 		if (!quietMode)
 			fprintf(stderr, "Failed to send ACK packet.\n");
@@ -284,9 +291,12 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 
 	if (!quietMode)
 		fprintf(stdout, "ACK packet sent.\n"
-					"Waiting for statistics packet...\n");
+						"Waiting for statistics packet...\n");
 
-	if (stnc_receive_tcp_data(chatSocket, buffer, false) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+	else
+		fprintf(stdout, "\nStatistics data for this transfer (server side):\n");
+
+	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
 	{
 		if (!quietMode)
 			fprintf(stderr, "Failed to receive statistics packet.\n");
@@ -337,7 +347,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 		char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return -1;
@@ -350,7 +360,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 		char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return EXIT_FAILURE;
@@ -365,7 +375,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 			
 			return -1;
@@ -395,7 +405,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -412,7 +422,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char err[] = "Poll timeout occured. Abort action immediately.";
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -444,6 +454,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 				int32_t bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -452,7 +463,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -468,6 +479,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesSent));
 				
 				int32_t bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, len);
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -476,7 +488,7 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV4, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -488,8 +500,6 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			}
 		}
 	}
-
-	gettimeofday(&endC, NULL);
 
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with %s:%d\n", server_ip, server_port);
@@ -519,7 +529,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 		char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return EXIT_FAILURE;
@@ -532,7 +542,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 		char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return EXIT_FAILURE;
@@ -547,7 +557,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 			
 			return -1;
@@ -577,7 +587,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -594,7 +604,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char err[] = "Poll timeout occured. Abort action immediately.";
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -626,6 +636,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 				int32_t bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -634,7 +645,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -650,6 +661,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesSent));
 				
 				int32_t bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -658,7 +670,7 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_IPV6, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -670,8 +682,6 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			}
 		}
 	}
-
-	gettimeofday(&endC, NULL);
 
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with %s:%d\n", server_ip, server_port);
@@ -703,7 +713,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 		char *err = strerror(errno);
 
-		stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		return -1;
@@ -718,7 +728,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 			
 			return -1;
@@ -748,7 +758,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -765,7 +775,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 			char err[] = "Poll timeout occured. Abort action immediately.";
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(serverSocket);
@@ -797,6 +807,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 				int32_t bytes = send(serverSocket, data + bytesSent, bytesToSend, 0);
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -805,7 +816,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -821,6 +832,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 				uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE_UDP) ? CHUNK_SIZE_UDP:(filesize - bytesSent));
 				
 				int32_t bytes = sendto(serverSocket, data + bytesSent, bytesToSend, 0, (struct sockaddr *)&serverAddress, len);
+				gettimeofday(&endC, NULL);
 
 				if (bytes <= 0)
 				{
@@ -829,7 +841,7 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 
 					char *err = strerror(errno);
 
-					stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+					stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_UNIX, param, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 					stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 					close(serverSocket);
@@ -841,8 +853,6 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			}
 		}
 	}
-
-	gettimeofday(&endC, NULL);
 
 	if (!quietMode && param == PARAM_TCP)
 		fprintf(stdout, "Closing connection with \"%s\"\n", server_uds_path);
@@ -926,7 +936,7 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			munmap(data, sizeof(uint32_t) + filesize);
@@ -944,7 +954,7 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 			char err[] = "Poll timeout occured. Abort action immediately.";
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			munmap(data, sizeof(uint32_t) + filesize);
@@ -976,6 +986,7 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 			uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 			memcpy(dataPtr, dataToSend, bytesToSend);
+			gettimeofday(&endC, NULL);
 
 			dataToSend += bytesToSend;
 			dataPtr += bytesToSend;
@@ -985,8 +996,6 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 			*bytesWritten = bytesSent;
 		}
 	}
-
-	gettimeofday(&endC, NULL);
 
 	if (munmap(data, sizeof(uint32_t) + filesize) == -1)
 	{
@@ -1066,7 +1075,7 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 			char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_SEND, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(fd);
@@ -1083,7 +1092,7 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 			char err[] = "Poll timeout occured. Abort action immediately.";
 
-			stnc_prepare_packet(buffer, MSGT_DATA, 0, 0, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
+			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_PIPE, PARAM_FILE, ERRC_SOCKET, (strlen(err) + 1), (uint8_t *) err);
 			stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 			close(fd);
@@ -1113,12 +1122,11 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 			uint32_t bytesToSend = (((filesize - bytesSent) > CHUNK_SIZE) ? CHUNK_SIZE:(filesize - bytesSent));
 
 			write(fd, dataToSend + bytesSent, bytesToSend);
+			gettimeofday(&endC, NULL);
 
 			bytesSent += bytesToSend;
 		}
 	}
-
-	gettimeofday(&endC, NULL);
 
 	close(fd);
 

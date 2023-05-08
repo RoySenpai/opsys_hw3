@@ -60,7 +60,7 @@ void stnc_print_license() {
 
 }
 
-uint8_t *util_generate_random_data(uint32_t size) {
+uint8_t *util_generate_random_data(uint32_t size, bool quietMode) {
 	uint8_t *buffer = NULL;
 
 	if (size == 0)
@@ -74,12 +74,14 @@ uint8_t *util_generate_random_data(uint32_t size) {
 	// Randomize the seed of the random number generator
 	srand(time(NULL));
 
-	fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
+	if (!quietMode)
+		fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
 
 	for (uint32_t i = 0; i < size; i++)
 		*(buffer + i) = ((uint32_t)rand() % 256);
 
-	fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
+	if (!quietMode)
+		fprintf(stdout, "Successfully generated %u bytes (%u MB) of random data.\n", size, (size / 1024 / 1024));
 
 	return buffer;
 }
@@ -224,6 +226,14 @@ int32_t stnc_send_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
 
 	else
 		bytesToSend = sizeof(stnc_packet);
+
+	if ((uint32_t)bytesToSend > STNC_PROTO_MAX_SIZE + sizeof(stnc_packet))
+	{
+		if (!quietMode)
+			fprintf(stderr, "Invalid data size (%d/%d).\n", bytesToSend, STNC_PROTO_MAX_SIZE);
+
+		return -1;
+	}
 	
 	int32_t bytesSent = send(socket, packet, bytesToSend, 0);
 
@@ -250,7 +260,7 @@ int32_t stnc_send_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
 }
 
 int32_t stnc_receive_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
-	ssize_t bytesReceived = recv(socket, packet, STNC_PROTO_MAX_SIZE, 0);
+	ssize_t bytesReceived = recv(socket, packet, (STNC_PROTO_MAX_SIZE + sizeof(stnc_packet)), 0);
 
 	if (bytesReceived < 0)
 	{
@@ -275,6 +285,14 @@ int32_t stnc_receive_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
 
 		return -1;
 	}
+
+	else if (((stnc_packet *)packet)->size > STNC_PROTO_MAX_SIZE && ((stnc_packet *)packet)->type == MSGT_DATA)
+	{
+		if (!quietMode)
+			fprintf(stderr, "Received packet is too big.\n");
+
+		return -1;
+	}
 	
 	else if (!quietMode)
 		fprintf(stdout, "Received %lu bytes.\n", bytesReceived);
@@ -288,6 +306,9 @@ int32_t stnc_receive_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
 			fprintf(stderr, "Error code: %u\n", stnc_get_packet_error(packet));
 			fprintf(stderr, "Error message: %s\n", error);
 		}
+
+		else
+			fprintf(stderr, "STNC internal error, please disable quiet mode to see the error message.\n");
 
 		return -1;
 	}

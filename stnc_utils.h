@@ -40,13 +40,14 @@ void stnc_print_license();
 /*
  * @brief Generates random data for the performace test, according to the given size.
  * @param size The size of the data buffer.
+ * @param quietMode If set to 1, the function will not print any messages.
  * @return A pointer to the generated data, or NULL on failure.
  * @note The data is generated using the rand() function.
  * @note The data is generated in blocks of 64KB.
  * @note If the size is not a multiple of 64KB, the last block will be smaller.
  * @note The caller is responsible for freeing the allocated memory.
 */
-uint8_t* util_generate_random_data(uint32_t size);
+uint8_t* util_generate_random_data(uint32_t size, bool quietMode);
 
 /*
  * @brief Prints the given packet data.

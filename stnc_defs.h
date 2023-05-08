@@ -102,7 +102,7 @@
 #define FILE_SIZE 104857600
 
 /*
- * @brief Defines the maximum size of a message, in performance mode.
+ * @brief Defines the maximum size of the payload, in performance mode.
  * @note The default value is 1024 bytes (1KB).
 */
 #define STNC_PROTO_MAX_SIZE 1024
