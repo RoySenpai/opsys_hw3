@@ -117,10 +117,10 @@
 
 /*
  * @brief Sets the name of the UNIX socket of the server, for the performance mode.
- * @note The default value is "stnc_uds.sock".
+ * @note The default value is "/tmp/stnc_uds.sock".
  * @note The name must be shorter than 108 characters.
 */
-#define STNC_UNIX_NAME "stnc_uds.sock"
+#define STNC_UNIX_NAME "/tmp/stnc_uds.sock"
 
 /****************************/
 /* Enumerations declaration */

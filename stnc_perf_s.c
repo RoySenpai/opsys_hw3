@@ -1164,6 +1164,8 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 	serverAddress.sun_family = AF_UNIX;
 
 	strcpy(serverAddress.sun_path, server_uds_path);
+
+	// Clean up the socket file if it already exists.
 	unlink(server_uds_path);
 
 	int len = strlen(serverAddress.sun_path) + sizeof(serverAddress.sun_family);
