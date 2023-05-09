@@ -413,8 +413,6 @@ int32_t stnc_perf_client_ipv4(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (!quietMode)
@@ -595,8 +593,6 @@ int32_t stnc_perf_client_ipv6(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (!quietMode)
@@ -706,6 +702,9 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 	serverAddress.sun_family = AF_UNIX;
 	strcpy(serverAddress.sun_path, server_uds_path);
 
+	// Delete the socket if it already exists, cleanup from previous runs (should not happen).
+	unlink(server_uds_path);
+
 	if ((serverSocket = socket(AF_UNIX, (param == PARAM_STREAM) ? SOCK_STREAM : SOCK_DGRAM, 0)) < 0)
 	{
 		if (!quietMode)
@@ -766,8 +765,6 @@ int32_t stnc_perf_client_unix(uint8_t* data, int32_t chatsocket, uint32_t filesi
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (!quietMode)
@@ -870,6 +867,9 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 	FILE *fp = NULL;
 
+	// Cleanup file if it exists.
+	unlink(file_name);
+
 	if ((fp = fopen(file_name, "w+")) == NULL)
 	{
 		char *err = strerror(errno);
@@ -898,6 +898,8 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
 		fclose(fp);
+		unlink(file_name);
+
 		return -1;
 	}
 
@@ -945,8 +947,6 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (!quietMode)
@@ -1025,6 +1025,9 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 	uint32_t bytesSent = 0;
 
+	// Cleanup previous FIFO file, if exists.
+	unlink(fifo_name);
+
 	if (mkfifo(fifo_name, 0644) == -1)
 	{
 		// Ignore the error if the file already exists, since it's OK.
@@ -1083,8 +1086,6 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (!quietMode)

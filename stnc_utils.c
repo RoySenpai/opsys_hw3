@@ -25,6 +25,25 @@
 #include <sys/socket.h>
 #include <openssl/evp.h>
 
+/*
+ * @brief The signeture of the data, used to identify the data as STNC data.
+ * @note The signeture is 64 bytes long, and is composed of the following:
+ * 		  	Magic number (STNC in ASCII), the word SPEEDTEST in ASCII,
+ * 		  	the names ROY_SIMANOVICH and LINOR_RONEN in ASCII,
+ * 		  	and the word ARIEL_OPSYS_HW3_MAY23 in ASCII.
+*/
+const uint8_t data_signeture[] = 
+{ 
+	0x53, 0x54, 0x4E, 0x43, 0x00, 0x53, 0x50, 0x45,
+	0x45, 0x44, 0x54, 0x45, 0x53, 0x54, 0x00, 0x52,
+	0x4F, 0x59, 0x5F, 0x53, 0x49, 0x4D, 0x41, 0x4E,
+	0x4F, 0x56, 0x49, 0x43, 0x48, 0x5F, 0x4C, 0x49,
+	0x4E, 0x4F, 0x52, 0x5F, 0x52, 0x4F, 0x4E, 0x45,
+	0x4E, 0x00, 0x41, 0x52, 0x49, 0x45, 0x4C, 0x5F,
+	0x4F, 0x50, 0x53, 0x59, 0x53, 0x5F, 0x48, 0x57,
+	0x33, 0x5F, 0x4D, 0x41, 0x59, 0x32, 0x33, 0x00
+};
+
 void stnc_print_usage(char *programName, uint8_t mode){
 	switch(mode)
 	{
@@ -77,7 +96,9 @@ uint8_t *util_generate_random_data(uint32_t size, bool quietMode) {
 	if (!quietMode)
 		fprintf(stdout, "Generating %u bytes (%u MB) of random data...\n", size, (size / 1024 / 1024));
 
-	for (uint32_t i = 0; i < size; i++)
+	memcpy(buffer, data_signeture, sizeof(data_signeture));
+
+	for (uint32_t i = sizeof(data_signeture); i < size; i++)
 		*(buffer + i) = ((uint32_t)rand() % 256);
 
 	if (!quietMode)
@@ -310,7 +331,7 @@ int32_t stnc_receive_tcp_data(int32_t socket, uint8_t *packet, bool quietMode) {
 		else
 			fprintf(stderr, "STNC internal error, please disable quiet mode to see the error message.\n");
 
-		return -1;
+		return -2;
 	}
 
 	return bytesReceived;
@@ -386,4 +407,16 @@ char* util_md5_checksum(uint8_t *data, uint32_t size) {
 	OPENSSL_free(md5_digest);
 
 	return checksumString;
+}
+bool util_is_valid_data(uint8_t *data, uint32_t size) {
+	if (data == NULL || size < 64)
+		return false;
+
+	for (uint32_t i = 0; i < 64; i++)
+	{
+		if (*(data + i) != *(data_signeture + i))
+			return false;
+	}
+
+	return true;
 }

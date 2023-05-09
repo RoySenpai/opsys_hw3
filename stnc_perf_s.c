@@ -112,7 +112,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			fprintf(stdout, "Waiting for initilization packet...\n");
 		}
 
-		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_INIT)
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_INIT)
 		{
 			fprintf(stderr, "Failed to receive initilization packet.\n");
 			close(chatSocket);
@@ -159,7 +159,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 		char md5HashExpected[33] = { 0 };
 
-		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_DATA)
 		{
 			fprintf(stderr, "Failed to receive data packet.\n");
 			close(chatSocket);
@@ -242,7 +242,7 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 				fprintf(stdout, "ACK packet sent.\n"
 								"Waiting for data packet...\n");
 
-			if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_DATA)
+			if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_DATA)
 			{
 				fprintf(stderr, "Failed to receive data packet.\n");
 				close(chatSocket);
@@ -317,6 +317,10 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			return EXIT_FAILURE;
 		}
 
+		if (!quietMode)
+			fprintf(stdout, "File transfer complete.\n"
+							"Calculating MD5 checksum...\n");
+
 		md5Hash = util_md5_checksum(data_to_receive, actual_received);
 
 		if (md5Hash == NULL)
@@ -327,7 +331,11 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		}
 
 		if (!quietMode)
-			fprintf(stdout, "File transfer complete.\n");
+			fprintf(stdout, "MD5 checksum calculated.\n");
+
+		if (!quietMode && !util_is_valid_data(data_to_receive, actual_received))
+			fprintf(stdout, "WARNING: received data is not valid.\n"
+							"Received data may be corrupted.\n");
 
 		transferTime = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec) / 1000000);
 
@@ -527,8 +535,6 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -549,7 +555,15 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+				if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+					close(clientSocket);
+
+					return -1;
+				}
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 				{
@@ -647,8 +661,6 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -671,7 +683,15 @@ int32_t stnc_perf_server_ipv4(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+					if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+						close(serverSocket);
+
+						return -1;
+					}
 					
 					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
@@ -899,8 +919,6 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -921,7 +939,15 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+				if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+					close(clientSocket);
+
+					return -1;
+				}
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 				{
@@ -1019,8 +1045,6 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -1043,7 +1067,15 @@ int32_t stnc_perf_server_ipv6(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+					if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+						close(serverSocket);
+
+						return -1;
+					}
 					
 					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
@@ -1245,8 +1277,6 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -1267,7 +1297,16 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 			if (fds[0].revents & POLLIN)
 			{
-				stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+				if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+				{
+					if (!quietMode)
+						fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+					close(clientSocket);
+					unlink(server_uds_path);
+
+					return -1;
+				}
 				
 				if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 				{
@@ -1365,8 +1404,6 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 				return -1;
 			}
 
-			// This should never happen, and if it does, it's a critical bug.
-			// Nevertherless, we still check for it.
 			else if (ret == 0)
 			{
 				if (STNC_IGNORE_STOP)
@@ -1389,12 +1426,21 @@ int32_t stnc_perf_server_unix(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			{
 				if (fds[0].revents & POLLIN)
 				{
-					stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+					if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+					{
+						if (!quietMode)
+							fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+						close(serverSocket);
+						unlink(server_uds_path);
+
+						return -1;
+					}
 					
 					if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 					{
 						if (!quietMode)
-							fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
+							fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
 						
 						close(serverSocket);
 
@@ -1535,8 +1581,6 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (STNC_IGNORE_STOP)
@@ -1557,7 +1601,17 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 
 		if (fds[0].revents & POLLIN)
 		{
-			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+			if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+				munmap(dataToReceive, sizeof(uint32_t) + filesize);
+				fclose(fp);
+				unlink(file_name);
+
+				return -1;
+			}
 				
 			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 			{
@@ -1566,7 +1620,7 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 					
 				munmap(dataToReceive, sizeof(uint32_t) + filesize);
 				fclose(fp);
-				remove(file_name);
+				unlink(file_name);
 
 				return -1;
 			}
@@ -1624,7 +1678,7 @@ int32_t stnc_perf_server_memory(int32_t chatsocket, uint8_t* data, uint32_t file
 	}
 
 	// Clean up, remove the file, as it's no longer needed.
-	remove(file_name);
+	unlink(file_name);
 
 	if (!quietMode)
 		fprintf(stdout, "Received %u bytes (%u MB).\n", bytesReceived, (bytesReceived / 1024) / 1024);
@@ -1701,8 +1755,6 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 			return -1;
 		}
 
-		// This should never happen, and if it does, it's a critical bug.
-		// Nevertherless, we still check for it.
 		else if (ret == 0)
 		{
 			if (STNC_IGNORE_STOP)
@@ -1723,7 +1775,16 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 
 		if (fds[0].revents & POLLIN)
 		{
-			stnc_receive_tcp_data(chatsocket, buffer, quietMode);
+			if (stnc_receive_tcp_data(chatsocket, buffer, quietMode) == -1)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Error occured during communication with client. Abort action immediately.\n");
+
+				close(fd);
+				unlink(file_name);
+
+				return -1;
+			}
 				
 			if (stnc_get_packet_error(buffer) != ERRC_SUCCESS)
 			{
@@ -1731,7 +1792,7 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 					fprintf(stderr, "Error occured while receiving data. Abort action immediately.\n");
 					
 				close(fd);
-				remove(file_name);
+				unlink(file_name);
 
 				return -1;
 			}

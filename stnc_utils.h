@@ -75,5 +75,15 @@ int32_t stnc_print_packet_payload(stnc_packet *packet);
 */
 char* util_md5_checksum(uint8_t *data, uint32_t size);
 
+/*
+ * @brief Validates the given data.
+ * @param data The data to validate.
+ * @param size The size of the data.
+ * @return True if the data is valid, false otherwise.
+ * @note This function is used by the performance mode of the STNC program.
+ * @note The data is valid if it contains the data signature.
+*/
+bool util_is_valid_data(uint8_t *data, uint32_t size);
+
 
 #endif
