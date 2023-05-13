@@ -134,11 +134,41 @@ int32_t stnc_client_performance(char *ip, char *port, char *transferProtocol, ch
 		fprintf(stdout, "Initilization packet sent.\n"
 						"Waiting for ACK packet...\n");
 
-	if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+	// Make sure the server is in performance mode as well
+
+	struct pollfd fds[1];
+
+	fds[0].fd = chatSocket;
+	fds[0].events = POLLIN;
+
+	int pollResult = poll(fds, 1, STNC_POLL_TIMEOUT);
+
+	if (pollResult == -1)
 	{
-		fprintf(stderr, "Failed to receive ACK packet.\n");
+		perror("poll");
 		close(chatSocket);
 		return EXIT_FAILURE;
+	}
+
+	else if (pollResult == 0)
+	{
+		fprintf(stderr, "Timeout while waiting for ACK packet.\n"
+						"Server is not in performance mode.\n");
+
+		free(data_to_send);
+		free(md5);
+		close(chatSocket);
+		return EXIT_FAILURE;
+	}
+
+	else if (fds[0].revents & POLLIN)
+	{
+		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) == -1 || stnc_get_packet_type(buffer) != MSGT_ACK)
+		{
+			fprintf(stderr, "Failed to receive ACK packet.\n");
+			close(chatSocket);
+			return EXIT_FAILURE;
+		}
 	}
 
 	if (!quietMode)
@@ -864,6 +894,8 @@ int32_t stnc_perf_client_memory(int32_t chatsocket, char *file_name, uint8_t *da
 
 	FILE *fp = NULL;
 
+	unlink(file_name);
+
 	if ((fp = fopen(file_name, "w+")) == NULL)
 	{
 		char *err = strerror(errno);
@@ -1021,19 +1053,15 @@ int32_t stnc_perf_client_pipe(int32_t chatsocket, char *fifo_name, uint8_t *data
 
 	if (mkfifo(fifo_name, 0644) == -1)
 	{
-		// Ignore the error if the file already exists, since it's OK.
-		if (errno != EEXIST)
-		{
-			if (!quietMode)
-				perror("mknod");
+		if (!quietMode)
+			perror("mknod");
 			
-			char *err = strerror(errno);
+		char *err = strerror(errno);
 
-			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
-			stnc_send_tcp_data(chatsocket, buffer, quietMode);
+		stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
+		stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-			return -1;
-		}
+		return -1;
 	}
 
 	if ((fd = open(fifo_name, O_WRONLY)) == -1)

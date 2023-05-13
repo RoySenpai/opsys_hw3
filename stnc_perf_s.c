@@ -112,11 +112,47 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			fprintf(stdout, "Waiting for initilization packet...\n");
 		}
 
-		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_INIT)
+		// Make sure the other side is in performance mode as well
+		struct pollfd fds[1];
+
+		fds[0].fd = chatSocket;
+		fds[0].events = POLLIN;
+
+		int pollResult = poll(fds, 1, STNC_POLL_TIMEOUT);
+
+		if (pollResult < 0)
 		{
-			fprintf(stderr, "Failed to receive initilization packet.\n");
+			perror("poll");
 			close(chatSocket);
 			return EXIT_FAILURE;
+		}
+
+		else if (pollResult == 0)
+		{
+			if (!quietMode)
+				fprintf(stderr, "Timeout while waiting for initilization packet.\n"
+								"Make sure the other side is in performance mode as well.\n");
+
+			else
+				fprintf(stderr, "error\n");
+
+			close(chatSocket);
+			continue;
+		}
+
+		else if (fds[0].revents & POLLIN)
+		{
+			if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_INIT)
+			{
+				if (!quietMode)
+					fprintf(stderr, "Failed to receive initilization packet.\n");
+
+				else
+					fprintf(stderr, "error\n");
+
+				close(chatSocket);
+				return EXIT_FAILURE;
+			}
 		}
 
 		protocol = stnc_get_packet_protocol(buffer);
@@ -136,6 +172,9 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 		{
 			if (!quietMode)
 				fprintf(stderr, "Failed to allocate memory.\n");
+
+			else
+				fprintf(stderr, "error\n");
 
 			char *err = strerror(errno);
 
@@ -161,7 +200,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 		if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_DATA)
 		{
-			fprintf(stderr, "Failed to receive data packet.\n");
+			if (!quietMode)
+				fprintf(stderr, "Failed to receive data packet.\n");
+
+			else
+				fprintf(stderr, "error\n");
+
 			close(chatSocket);
 			return EXIT_FAILURE;
 		}
@@ -244,7 +288,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 			if (stnc_receive_tcp_data(chatSocket, buffer, quietMode) < 0 || stnc_get_packet_type(buffer) != MSGT_DATA)
 			{
-				fprintf(stderr, "Failed to receive data packet.\n");
+				if (!quietMode)
+					fprintf(stderr, "Failed to receive data packet.\n");
+
+				else
+					fprintf(stderr, "error\n");
+
 				close(chatSocket);
 				return EXIT_FAILURE;
 			}
@@ -311,7 +360,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 		if (actual_received == -1)
 		{
-			fprintf(stderr, "Failed to receive data packet.\n");
+			if (!quietMode)
+				fprintf(stderr, "Failed to receive data packet.\n");
+
+			else
+				fprintf(stderr, "error\n");
+			
 			free(data_to_receive);
 			close(chatSocket);
 			return EXIT_FAILURE;
@@ -325,7 +379,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 		if (md5Hash == NULL)
 		{
-			fprintf(stderr, "Failed to calculate MD5 checksum.\n");
+			if (!quietMode)
+				fprintf(stderr, "Failed to calculate MD5 checksum.\n");
+			
+			else
+				fprintf(stderr, "error\n");
+			
 			free(data_to_receive);
 			return EXIT_FAILURE;
 		}
@@ -359,7 +418,13 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 			fprintf(stdout, "%s\n", statics);
 		
 		else
-			fprintf(stdout, "%s,%d\n", transferName, (int)(transferTime * 1000));
+		{
+			if (strcmp(md5Hash, md5HashExpected) == 0)
+				fprintf(stdout, "%s,%d\n", transferName, (int)(transferTime * 1000));
+
+			else
+				fprintf(stdout, "%s,%d (error)\n", transferName, (int)(transferTime * 1000));
+		}
 
 		free(md5Hash);
 
@@ -370,7 +435,12 @@ int32_t stnc_server_performance(char *port, bool quietMode) {
 
 		if (stnc_send_tcp_data(chatSocket, buffer, quietMode) == -1)
 		{
-			fprintf(stderr, "Failed to send statistics packet.\n");
+			if (!quietMode)
+				fprintf(stderr, "Failed to send statistics packet.\n");
+
+			else
+				fprintf(stderr, "error\n");
+			
 			close(chatSocket);
 			return EXIT_FAILURE;
 		}
@@ -1696,22 +1766,7 @@ int32_t stnc_perf_server_pipe(int32_t chatsocket, uint8_t* data, uint32_t filesi
 	stnc_prepare_packet(buffer, MSGT_ACK, PROTOCOL_PIPE, PARAM_FILE, ERRC_SUCCESS, 0, NULL);
 	stnc_send_tcp_data(chatsocket, buffer, quietMode);
 
-	if (mkfifo(file_name, 0644) == -1)
-	{
-		// Ignore the error if the file already exists, since it's OK.
-		if (errno != EEXIST)
-		{
-			if (!quietMode)
-				perror("mknod");
-			
-			char *err = strerror(errno);
-
-			stnc_prepare_packet(buffer, MSGT_DATA, PROTOCOL_MMAP, PARAM_FILE, ERRC_PIPE, (strlen(err) + 1), (uint8_t *) err);
-			stnc_send_tcp_data(chatsocket, buffer, quietMode);
-
-			return -1;
-		}
-	}
+	sleep(1);
 
 	if ((fd = open(file_name, O_RDONLY)) == -1)
 	{
